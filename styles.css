@@ -6,3 +6,36 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.r2-vault-sync-usage {
+	font-family: var(--font-monospace);
+	font-size: var(--font-smaller);
+	white-space: pre-wrap;
+	margin: 0 0 var(--size-4-4);
+	padding: var(--size-4-2) var(--size-4-3);
+	background: var(--background-secondary);
+	border-radius: var(--radius-s);
+}
+
+.r2-vault-sync-number {
+	width: 6em;
+	text-align: right;
+}
+
+.r2-vault-sync-log {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--font-smaller);
+}
+
+.r2-vault-sync-log th,
+.r2-vault-sync-log td {
+	padding: var(--size-4-1) var(--size-4-2);
+	text-align: left;
+	vertical-align: top;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.r2-vault-sync-log-failed {
+	color: var(--text-error);
+}

@@ -180,7 +180,7 @@ export class SettingsTab extends PluginSettingTab {
 					await this.save();
 				}),
 			);
-		addIntSetting(new Setting(el).setName('Maximum file size on desktop (MB)'), {
+		addIntSetting(new Setting(el).setName('Maximum file size on desktop (megabytes)'), {
 			min: 1,
 			max: 10_000,
 			get: () => s.maxFileSizeMb,
@@ -189,7 +189,7 @@ export class SettingsTab extends PluginSettingTab {
 				await this.save();
 			},
 		});
-		addIntSetting(new Setting(el).setName('Maximum file size on mobile (MB)'), {
+		addIntSetting(new Setting(el).setName('Maximum file size on mobile (megabytes)'), {
 			min: 1,
 			max: 10_000,
 			get: () => s.maxFileSizeMbMobile,
@@ -218,7 +218,6 @@ export class SettingsTab extends PluginSettingTab {
 				sl
 					.setLimits(0, 600, 30)
 					.setValue(s.quietSeconds)
-					.setDynamicTooltip()
 					.onChange(async (v) => {
 						s.quietSeconds = v;
 						await this.save();

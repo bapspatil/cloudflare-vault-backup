@@ -32,6 +32,14 @@ export default defineConfig(
 	},
 	...obsidianmd.configs.recommended,
 	{
+		rules: {
+			'obsidianmd/ui/sentence-case': [
+				'warn',
+				{ brands: ['Cloudflare', 'R2', 'Obsidian'], acronyms: ['ID', 'MB', 'URL', 'KDF'], ignoreRegex: ['\\*\\*', '\\*\\.'] },
+			],
+		},
+	},
+	{
 		files: ['src/core/**/*.ts'],
 		rules: {
 			'obsidianmd/prefer-window-timers': 'off',
