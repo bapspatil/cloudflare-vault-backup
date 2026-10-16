@@ -1,6 +1,6 @@
-# R2 Vault Sync
+# Cloudflare Vault Backup
 
-R2 Vault Sync backs up your Obsidian vault to your own Cloudflare R2 bucket as versioned snapshots, with per-note restore and optional client-side encryption. It is a one-way backup tool, not a two-way sync, and it complements Obsidian File Recovery and Obsidian Sync rather than replacing them.
+Cloudflare Vault Backup backs up your Obsidian vault to your own Cloudflare R2 bucket as versioned snapshots, with per-note restore and optional client-side encryption. It is a one-way backup tool, not a two-way sync, and it complements Obsidian File Recovery and Obsidian Sync rather than replacing them.
 
 Your local vault is always the source of truth. The plugin never changes local files during a backup, so deletions cannot come back from the bucket and two devices cannot overwrite each other's edits.
 
@@ -60,13 +60,13 @@ With encryption on, blobs and manifests are encrypted before they leave the devi
 
 ## Installation
 
-R2 Vault Sync needs Obsidian 1.11.4 or later on desktop or mobile.
+Cloudflare Vault Backup needs Obsidian 1.11.4 or later on desktop or mobile.
 
 ### From Community plugins
 
 1. In Obsidian, open **Settings → Community plugins**.
 2. If restricted mode is on, select **Turn on community plugins**.
-3. Select **Browse**, then search for **R2 Vault Sync**.
+3. Select **Browse**, then search for **Cloudflare Vault Backup**.
 4. Select **Install**, then **Enable**.
 
 ### With BRAT
@@ -76,20 +76,20 @@ Use [BRAT](https://github.com/TfTHacker/obsidian42-brat) to install the plugin b
 1. Install and enable **BRAT** from **Settings → Community plugins**.
 2. Run the **BRAT: Add a beta plugin for testing** command.
 3. Enter `https://github.com/bapspatil/r2-vault-sync` and select **Add plugin**.
-4. Enable **R2 Vault Sync** in **Settings → Community plugins**.
+4. Enable **Cloudflare Vault Backup** in **Settings → Community plugins**.
 
 ### Manually
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bapspatil/r2-vault-sync/releases/latest).
 2. In your vault, create the folder `<Vault>/.obsidian/plugins/cloudflare-vault-backup/`. If you changed the configuration folder, use that folder instead of `.obsidian`.
 3. Copy the three files into that folder.
-4. Reload Obsidian, then enable **R2 Vault Sync** in **Settings → Community plugins**.
+4. Reload Obsidian, then enable **Cloudflare Vault Backup** in **Settings → Community plugins**.
 
 To update a manual install, replace the three files with the ones from the newer release and reload Obsidian.
 
 ### Upgrading from 1.1.0 or earlier
 
-Versions 1.1.0 and earlier used the plugin ID `r2-vault-sync`. From 1.2.0 the ID is `cloudflare-vault-backup`, so Obsidian treats the new version as a separate plugin in a new folder. Install the new version, enable it, and it copies your settings from the old folder, so it keeps backing up to the same backup set. Then uninstall the old copy. Your secrets stay in Obsidian's secret storage, so you don't need to enter them again.
+Versions 1.1.0 and earlier were named R2 Vault Sync and used the plugin ID `r2-vault-sync`. From 1.2.1 the plugin is named Cloudflare Vault Backup and the ID is `cloudflare-vault-backup`, so Obsidian treats the new version as a separate plugin in a new folder. Install the new version, enable it, and it copies your settings from the old folder, so it keeps backing up to the same backup set. Then uninstall the old copy. Your secrets stay in Obsidian's secret storage, so you don't need to enter them again.
 
 ### Updating
 
@@ -105,7 +105,7 @@ You need a Cloudflare account with R2 enabled. The plugin needs Obsidian 1.11.4 
 4. Give the token the **Object Read & Write** permission and apply it to the bucket you created only.
 5. Create the token, then copy the **Access Key ID** and the **Secret Access Key**. Cloudflare shows the secret once.
 6. Copy your account ID from the R2 overview page. It is 32 hex characters.
-7. In Obsidian, open **Settings → R2 Vault Sync**.
+7. In Obsidian, open **Settings → Cloudflare Vault Backup**.
 8. Under **Connection**, enter the account ID, the bucket name, and a prefix. The default prefix is `obsidian`. One bucket can hold several vaults under one prefix.
 9. Add the access key ID and the secret access key in their secret fields.
 10. Select **Test connection**.
@@ -135,7 +135,7 @@ Folders that start with a dot, such as `.trash` and `.git`, are not scanned. Tur
 
 Files larger than the size cap are skipped and listed in the snapshot as too large. The cap is 50 MB on desktop and 20 MB on mobile. You can change both under **What to back up**.
 
-On desktop, the status bar shows the current state of a backup. On every platform, **Settings → R2 Vault Sync → Backup log → View log** lists the last 100 runs with their result, the number and size of uploaded files, and any error.
+On desktop, the status bar shows the current state of a backup. On every platform, **Settings → Cloudflare Vault Backup → Backup log → View log** lists the last 100 runs with their result, the number and size of uploaded files, and any error.
 
 ## Restoring
 
@@ -241,8 +241,8 @@ To test a local build in a vault, run `bun run build` and copy `main.js`, `manif
 
 ## Author
 
-R2 Vault Sync is made by [Bapusaheb Patil](https://bapspatil.com). Report bugs and request features on [GitHub issues](https://github.com/bapspatil/r2-vault-sync/issues).
+Cloudflare Vault Backup is made by [Bapusaheb Patil](https://bapspatil.com). Report bugs and request features on [GitHub issues](https://github.com/bapspatil/r2-vault-sync/issues).
 
 ## License
 
-R2 Vault Sync is released under the 0BSD license. See [LICENSE](LICENSE).
+Cloudflare Vault Backup is released under the 0BSD license. See [LICENSE](LICENSE).
