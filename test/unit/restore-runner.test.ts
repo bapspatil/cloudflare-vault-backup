@@ -37,9 +37,39 @@ async function setup(files: Record<string, Uint8Array | string> = {}) {
 		skipped: [],
 	};
 	await store.writeManifest(manifest);
-	const deps: RestoreDeps = { store, vault, now: () => Date.UTC(2026, 9, 16, 15, 0, 0) };
+	const deps: RestoreDeps = { store, vault, now: () => Date.UTC(2026, 9, 16, 15, 0, 0), allowConfigDir: false };
 	return { deps, vault, manifest, store };
 }
+
+describe('config folder protection', () => {
+	async function withConfigFile(path: string) {
+		const ctx = await setup();
+		const bytes = utf8('alert(1)');
+		const h = await sha256Hex(bytes);
+		await ctx.store.putBlob(h, bytes);
+		ctx.manifest.files[path] = { h, s: bytes.byteLength, m: 1 };
+		return ctx;
+	}
+
+	it('refuses config folder targets unless allowed', async () => {
+		const { deps, manifest, vault } = await withConfigFile('.obsidian/plugins/evil/main.js');
+		const refused = await restoreFile(deps, manifest, '.obsidian/plugins/evil/main.js', { kind: 'overwrite' });
+		expect(refused).toEqual({
+			path: '.obsidian/plugins/evil/main.js', outcome: 'failed', target: '.obsidian/plugins/evil/main.js',
+			detail: 'refused: config folder (enable config restore)',
+		});
+		expect(vault.files.has('.obsidian/plugins/evil/main.js')).toBe(false);
+		const allowed = await restoreFile({ ...deps, allowConfigDir: true }, manifest, '.obsidian/plugins/evil/main.js', { kind: 'overwrite' });
+		expect(allowed.outcome).toBe('written');
+	});
+
+	it('always refuses this plugin\'s own state files', async () => {
+		const path = '.obsidian/plugins/r2-vault-sync/data.json';
+		const { deps, manifest } = await withConfigFile(path);
+		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, { kind: 'overwrite' });
+		expect(result.detail).toBe('refused: plugin state file');
+	});
+});
 
 describe('restoreFile', () => {
 	it('copy writes a dated sibling with exact bytes', async () => {

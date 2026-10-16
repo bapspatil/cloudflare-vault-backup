@@ -1,13 +1,23 @@
 import { sha256Hex } from '../core/crypto';
-import { isTextPath, restoredCopyPath } from '../core/paths';
+import { defaultExcludes, isTextPath, restoredCopyPath } from '../core/paths';
 import { runPool } from '../core/pool';
 import type { Manifest } from '../core/types';
 import type { RemoteStore, VaultPort } from '../io/types';
+import { PLUGIN_ID } from '../settings';
 
 export interface RestoreDeps {
 	store: RemoteStore;
 	vault: VaultPort;
 	now: () => number;
+	allowConfigDir: boolean;
+}
+
+function refusal(deps: RestoreDeps, target: string): string | null {
+	const configDir = deps.vault.configDir;
+	const inConfig = target === configDir || target.startsWith(`${configDir}/`);
+	if (!inConfig) return null;
+	if (defaultExcludes(configDir, PLUGIN_ID).includes(target)) return 'refused: plugin state file';
+	return deps.allowConfigDir ? null : 'refused: config folder (enable config restore)';
 }
 
 export type RestoreMode = { kind: 'copy' } | { kind: 'overwrite' } | { kind: 'into-folder'; folder: string };
@@ -41,6 +51,8 @@ export async function restoreFile(
 ): Promise<RestoreFileResult> {
 	const target = targetPath(deps, manifest, path, mode);
 	try {
+		const refused = refusal(deps, target);
+		if (refused) return { path, outcome: 'failed', target, detail: refused };
 		const entry = manifest.files[path];
 		if (!entry) return { path, outcome: 'failed', target, detail: 'not in snapshot' };
 		const bytes = await deps.store.getBlob(entry.h);
