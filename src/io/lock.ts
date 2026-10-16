@@ -55,6 +55,8 @@ async function claim(
 		const existing = await client.get(key);
 		if (!existing.ok) continue;
 		const held = parseLockRecord(existing.body);
+		// The client retries after network errors, so a 412 can be our own create landing on an earlier attempt.
+		if (held !== null && held.runId === record.runId) return { record: held, etag: existing.etag };
 		// A corrupt record has no live holder that could refresh it, so it is treated as expired.
 		if (held !== null && Date.parse(held.expiresAt) > existing.serverDate) return null;
 
@@ -63,9 +65,18 @@ async function claim(
 			contentType: JSON_TYPE,
 			condition: { ifMatch: existing.etag },
 		});
-		return takeover.ok ? { record: taken, etag: takeover.etag } : null;
+		if (takeover.ok) return { record: taken, etag: takeover.etag };
+		const etag = await ownedEtag(client, key, taken);
+		return etag === null ? null : { record: taken, etag };
 	}
 	return null;
+}
+
+async function ownedEtag(client: R2Client, key: string, mine: LockRecord): Promise<string | null> {
+	const now = await client.get(key);
+	if (!now.ok) return null;
+	const held = parseLockRecord(now.body);
+	return held !== null && encodeRecord(held) === encodeRecord(mine) ? now.etag : null;
 }
 
 function makeHandle(
@@ -86,12 +97,13 @@ function makeHandle(
 			if (!held) return false;
 			const next = recordAt();
 			const res = await client.put(key, encodeRecord(next), { contentType: JSON_TYPE, condition: { ifMatch: etag } });
-			if (!res.ok) {
+			const nextEtag = res.ok ? res.etag : await ownedEtag(client, key, next);
+			if (nextEtag === null) {
 				held = false;
 				return false;
 			}
 			record = next;
-			etag = res.etag;
+			etag = nextEtag;
 			return true;
 		},
 		async release() {

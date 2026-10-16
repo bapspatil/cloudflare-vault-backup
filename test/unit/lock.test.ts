@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { acquireLock, parseLockRecord } from '../../src/io/lock';
+import type { R2Client } from '../../src/io/types';
 import { createFakeR2 } from '../helpers/fake-r2';
+
+// Models the client's retry after a lost response: the first conditional PUT lands, the retry sees 412.
+function landsThenRetries(inner: R2Client, enabled: { on: boolean }): R2Client {
+	return {
+		...inner,
+		put: async (key, body, opts) => {
+			const first = await inner.put(key, body, opts);
+			if (!enabled.on || !opts?.condition || !first.ok) return first;
+			return inner.put(key, body, opts);
+		},
+	};
+}
 
 const KEY = 'backups/v1/lock.json';
 const TTL = 600_000;
@@ -109,6 +122,38 @@ describe('LockHandle', () => {
 });
 
 describe('parseLockRecord', () => {
+	it('holds the lock when a retried create sees its own write', async () => {
+		const { r2, opts, stored } = setup();
+		const retrying = { on: true };
+		const handle = await acquireLock(landsThenRetries(r2, retrying), KEY, opts('a'));
+		expect(handle).not.toBe(null);
+		expect(stored()).toEqual(handle!.record);
+		expect(await acquireLock(r2, KEY, opts('b'))).toBe(null);
+	});
+
+	it('holds the lock when a retried takeover sees its own write', async () => {
+		const { r2, opts, stored } = setup();
+		const first = await acquireLock(r2, KEY, opts('a'));
+		await first!.release();
+		const handle = await acquireLock(landsThenRetries(r2, { on: true }), KEY, opts('b'));
+		expect(handle!.record.deviceId).toBe('b');
+		expect(stored()).toEqual(handle!.record);
+	});
+
+	it('keeps the lock when a retried refresh sees its own write', async () => {
+		const { r2, opts, stored } = setup();
+		const retrying = { on: false };
+		const handle = await acquireLock(landsThenRetries(r2, retrying), KEY, opts('a'));
+		r2.setServerNow(Date.parse('2026-01-01T00:05:00.000Z'));
+		retrying.on = true;
+		expect(await handle!.refresh()).toBe(true);
+		expect(stored()!.expiresAt).toBe('2026-01-01T00:15:00.000Z');
+		retrying.on = false;
+		expect(await handle!.refresh()).toBe(true);
+		await handle!.release();
+		expect(stored()!.expiresAt).toBe('1970-01-01T00:00:00.000Z');
+	});
+
 	it('accepts exactly the three string fields with a valid date', () => {
 		expect(parseLockRecord(utf8('{"deviceId":"a","runId":"r","expiresAt":"2026-01-01T00:00:00.000Z"}'))).toEqual({
 			deviceId: 'a',
