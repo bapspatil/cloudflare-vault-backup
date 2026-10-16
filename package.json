@@ -1,18 +1,18 @@
 {
-	"name": "r2-vault-sync",
+	"name": "cloudflare-vault-backup",
 	"version": "1.2.1",
 	"description": "Obsidian plugin that backs up a vault to your own Cloudflare R2 bucket with versioned snapshots, per-note restore and optional encryption",
 	"author": {
 		"name": "Bapusaheb Patil",
 		"url": "https://bapspatil.com"
 	},
-	"homepage": "https://github.com/bapspatil/r2-vault-sync#readme",
+	"homepage": "https://github.com/bapspatil/cloudflare-vault-backup#readme",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/bapspatil/r2-vault-sync.git"
+		"url": "git+https://github.com/bapspatil/cloudflare-vault-backup.git"
 	},
 	"bugs": {
-		"url": "https://github.com/bapspatil/r2-vault-sync/issues"
+		"url": "https://github.com/bapspatil/cloudflare-vault-backup/issues"
 	},
 	"main": "main.js",
 	"type": "module",
