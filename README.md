@@ -75,12 +75,12 @@ Use [BRAT](https://github.com/TfTHacker/obsidian42-brat) to install the plugin b
 
 1. Install and enable **BRAT** from **Settings → Community plugins**.
 2. Run the **BRAT: Add a beta plugin for testing** command.
-3. Enter `https://github.com/bapspatil/r2-vault-sync` and select **Add plugin**.
+3. Enter `https://github.com/bapspatil/cloudflare-vault-backup` and select **Add plugin**.
 4. Enable **Cloudflare Vault Backup** in **Settings → Community plugins**.
 
 ### Manually
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bapspatil/r2-vault-sync/releases/latest).
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bapspatil/cloudflare-vault-backup/releases/latest).
 2. In your vault, create the folder `<Vault>/.obsidian/plugins/cloudflare-vault-backup/`. If you changed the configuration folder, use that folder instead of `.obsidian`.
 3. Copy the three files into that folder.
 4. Reload Obsidian, then enable **Cloudflare Vault Backup** in **Settings → Community plugins**.
@@ -241,7 +241,7 @@ To test a local build in a vault, run `bun run build` and copy `main.js`, `manif
 
 ## Author
 
-Cloudflare Vault Backup is made by [Bapusaheb Patil](https://bapspatil.com). Report bugs and request features on [GitHub issues](https://github.com/bapspatil/r2-vault-sync/issues).
+Cloudflare Vault Backup is made by [Bapusaheb Patil](https://bapspatil.com). Report bugs and request features on [GitHub issues](https://github.com/bapspatil/cloudflare-vault-backup/issues).
 
 ## License
 
