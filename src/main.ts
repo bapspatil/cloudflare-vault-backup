@@ -1,10 +1,10 @@
-import { Notice, Platform, Plugin, type WorkspaceLeaf } from 'obsidian';
+import { Notice, Platform, Plugin, normalizePath, type WorkspaceLeaf } from 'obsidian';
 import { runBackup } from './backup/backup-runner';
 import { runLockedPrune } from './backup/prune-runner';
 import { createScheduler, type Scheduler } from './backup/scheduler';
 import { ERRORS, LABEL } from './core/run-machine';
 import type { RunLogEntry, RunState } from './core/types';
-import { loadSettings, type Settings } from './settings';
+import { LEGACY_PLUGIN_ID, loadSettings, type Settings } from './settings';
 import { probeConnection, ServiceFactory, SetupError } from './services';
 import { RestoreView, RESTORE_VIEW_TYPE } from './ui/restore-view';
 import { SettingsTab } from './ui/settings-tab';
@@ -21,7 +21,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 	private readonly stateListeners = new Set<(s: RunState) => void>();
 
 	async onload() {
-		this.settings = loadSettings(await this.loadData());
+		this.settings = loadSettings((await this.loadData()) ?? (await this.loadLegacyData()));
 		await this.saveSettings();
 		this.services = new ServiceFactory(this.app, () => this.settings);
 
@@ -62,6 +62,20 @@ export default class R2VaultSyncPlugin extends Plugin {
 
 	onunload() {
 		this.statusBar = null;
+	}
+
+	// Versions before 1.2.0 used the plugin id r2-vault-sync. Adopting its settings keeps the
+	// vaultId, so this install keeps backing up to the same backup set.
+	private async loadLegacyData(): Promise<unknown> {
+		const path = normalizePath(`${this.app.vault.configDir}/plugins/${LEGACY_PLUGIN_ID}/data.json`);
+		if (!(await this.app.vault.adapter.exists(path))) return null;
+		try {
+			const data: unknown = JSON.parse(await this.app.vault.adapter.read(path));
+			new Notice('Copied settings from the old install of this plugin. Uninstall the old copy from your community plugins.');
+			return data;
+		} catch {
+			return null;
+		}
 	}
 
 	async saveSettings() {

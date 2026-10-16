@@ -103,9 +103,9 @@ describe('plugin state never reaches a backup', () => {
 		await state.saveCounters({ month: '2026-10', classA: 1, classB: 1, bytesUploaded: 1, bytesDownloaded: 1 });
 		const written = [...vault.pluginFiles.keys()].map((name) => `.obsidian/plugins/${PLUGIN_ID}/${name}`);
 		expect(written.sort()).toEqual([
-			'.obsidian/plugins/r2-vault-sync/counters.json',
-			'.obsidian/plugins/r2-vault-sync/index.json',
-			'.obsidian/plugins/r2-vault-sync/log.json',
+			'.obsidian/plugins/cloudflare-vault-backup/counters.json',
+			'.obsidian/plugins/cloudflare-vault-backup/index.json',
+			'.obsidian/plugins/cloudflare-vault-backup/log.json',
 		]);
 		const opts = { configDir: '.obsidian', includeConfigDir: true, excludeGlobs: [], pluginId: PLUGIN_ID };
 		expect(written.filter((p) => isIncluded(p, opts))).toEqual([]);

@@ -81,11 +81,15 @@ Use [BRAT](https://github.com/TfTHacker/obsidian42-brat) to install the plugin b
 ### Manually
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bapspatil/r2-vault-sync/releases/latest).
-2. In your vault, create the folder `<Vault>/.obsidian/plugins/r2-vault-sync/`. If you changed the configuration folder, use that folder instead of `.obsidian`.
+2. In your vault, create the folder `<Vault>/.obsidian/plugins/cloudflare-vault-backup/`. If you changed the configuration folder, use that folder instead of `.obsidian`.
 3. Copy the three files into that folder.
 4. Reload Obsidian, then enable **R2 Vault Sync** in **Settings → Community plugins**.
 
 To update a manual install, replace the three files with the ones from the newer release and reload Obsidian.
+
+### Upgrading from 1.1.0 or earlier
+
+Versions 1.1.0 and earlier used the plugin ID `r2-vault-sync`. From 1.2.0 the ID is `cloudflare-vault-backup`, so Obsidian treats the new version as a separate plugin in a new folder. Install the new version, enable it, and it copies your settings from the old folder, so it keeps backing up to the same backup set. Then uninstall the old copy. Your secrets stay in Obsidian's secret storage, so you don't need to enter them again.
 
 ### Updating
 
@@ -233,7 +237,7 @@ R2_SECRET=<secret access key>
 
 Then run `bun run test:int`. The `.env` file is ignored by git.
 
-To test a local build in a vault, run `bun run build` and copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/r2-vault-sync/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
+To test a local build in a vault, run `bun run build` and copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/cloudflare-vault-backup/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
 
 ## Author
 

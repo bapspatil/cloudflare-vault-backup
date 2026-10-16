@@ -34,10 +34,10 @@ async function run(expr) {
 	return res.result.result.value;
 }
 
-const plugin = `app.plugins.plugins['r2-vault-sync']`;
+const plugin = `app.plugins.plugins['cloudflare-vault-backup']`;
 const STEPS = {
 	async enable() {
-		return run(`(async () => { await app.plugins.setEnable(true); await app.plugins.enablePluginAndSave('r2-vault-sync'); return Object.keys(app.plugins.plugins); })()`);
+		return run(`(async () => { await app.plugins.setEnable(true); await app.plugins.enablePluginAndSave('cloudflare-vault-backup'); return Object.keys(app.plugins.plugins); })()`);
 	},
 	async configure() {
 		return run(`(async () => {
@@ -89,7 +89,7 @@ const STEPS = {
 		})()`);
 	},
 	async settings() {
-		return run(`(async () => { app.setting.open(); app.setting.openTabById('r2-vault-sync'); await new Promise(r => setTimeout(r, 2500)); const t = app.setting.activeTab.containerEl.innerText; app.setting.close(); return t.slice(0, 1500); })()`);
+		return run(`(async () => { app.setting.open(); app.setting.openTabById('cloudflare-vault-backup'); await new Promise(r => setTimeout(r, 2500)); const t = app.setting.activeTab.containerEl.innerText; app.setting.close(); return t.slice(0, 1500); })()`);
 	},
 	async mobile() {
 		return run(`(async () => { app.emulateMobile(true); await new Promise(r => setTimeout(r, 1500)); const sb = document.querySelector('.r2-vault-sync-status'); const r = { mobile: app.isMobile, statusBarVisible: !!sb && sb.offsetParent !== null }; app.emulateMobile(false); return r; })()`);
@@ -98,7 +98,7 @@ const STEPS = {
 		return run(`${plugin}.state`);
 	},
 	async disable() {
-		return run(`(async () => { await app.plugins.disablePluginAndSave('r2-vault-sync'); return Object.keys(app.plugins.plugins); })()`);
+		return run(`(async () => { await app.plugins.disablePluginAndSave('cloudflare-vault-backup'); return Object.keys(app.plugins.plugins); })()`);
 	},
 };
 
