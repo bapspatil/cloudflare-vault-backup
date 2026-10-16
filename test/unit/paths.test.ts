@@ -204,6 +204,13 @@ describe('isBackupPath', () => {
 		['.gitignore', '.obsidian', false],
 		['Notes/.hidden/x.md', '.obsidian', false],
 		['Notes/.obsidian/x.md', '.obsidian', false],
+		['\u200C.git/hooks/pre-commit', '.obsidian', false],
+		['Notes/\uFEFF.hidden/x.md', '.obsidian', false],
+		['\u200C.obsidian/plugins/x/main.js', '.obsidian', true],
+		['GIT~1/hooks/pre-commit', '.obsidian', false],
+		['OBSIDI~1/plugins/x/main.js', '.obsidian', false],
+		['Notes/GITIGN~1', '.obsidian', false],
+		['.obsidian', '.obsidian', false],
 	])('%s with %s -> %s', (path, dir, expected) => {
 		expect(isBackupPath(path, dir)).toBe(expected);
 	});
