@@ -54,7 +54,8 @@ export default class R2VaultSyncPlugin extends Plugin {
 			this.registerEvent(this.app.vault.on('rename', note));
 			this.scheduler.start();
 			if (this.settings.schedule.onStartup) {
-				window.setTimeout(() => void this.backupNow('startup'), 30_000);
+				const startup = window.setTimeout(() => void this.backupNow('startup'), 30_000);
+				this.register(() => window.clearTimeout(startup));
 			}
 		});
 	}
