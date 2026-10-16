@@ -1,92 +1,195 @@
-# Obsidian Sample Plugin
+# R2 Vault Sync
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+R2 Vault Sync backs up your Obsidian vault to your own Cloudflare R2 bucket as versioned snapshots, with per-note restore and optional client-side encryption. It is a one-way backup tool, not a two-way sync, and it complements Obsidian File Recovery and Obsidian Sync rather than replacing them.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+Your local vault is always the source of truth. The plugin never changes local files during a backup, so deletions cannot come back from the bucket and two devices cannot overwrite each other's edits.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+## How it works
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+Each backup creates a snapshot. A snapshot is one JSON manifest that maps every file path to a SHA-256 hash, a size, and a modification time. File contents live in separate blobs named by their hash.
 
-## First time developing plugins?
+Because blobs are content-addressed, a file that did not change between snapshots is stored once. A backup uploads only blobs the bucket does not already have. After a one-note edit, a backup uploads one blob and one manifest. Any snapshot can be restored as it was at that point in time.
 
-Quick starting guide for new plugin devs:
+A backup first compares the size and modification time of every file with a local index. If nothing changed, the backup skips the lock and the upload and creates no snapshot.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+The bucket layout under your prefix looks like this:
 
-## Releasing new releases
-
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
-
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
-
-## Adding your plugin to the community plugin list
-
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
-
-## How to use
-
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
-
-## Manually installing the plugin
-
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
-
-## Improve code quality with eslint
-
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
+```
+<prefix>/<vaultId>/vault.json                 backup set descriptor
+<prefix>/<vaultId>/lock.json                  run lock
+<prefix>/<vaultId>/snapshots/<snapId>.json    one manifest per snapshot
+<prefix>/<vaultId>/blobs/<h0h1>/<hash>        file contents
 ```
 
-If you have multiple URLs, you can also do:
+- `vaultId` is 16 random hex characters, created on first load and saved in the plugin settings. Renaming the vault folder does not orphan the backups.
+- `snapId` looks like `20261016T162233Z-3fa9`. Snapshot ids sort in time order.
+- Vault paths never appear in object keys. Paths appear only inside manifests.
 
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
+A backup holds `lock.json` for the whole run. The plugin creates the lock with a conditional write, refreshes it every 60 seconds, and treats it as expired 10 minutes after the last refresh. If another device holds a live lock, the backup fails with a "locked" error and the next scheduled run tries again. The lock stops one device's cleanup from deleting a blob that another device is about to reference.
+
+Retention decides which snapshots to keep. Pruning deletes the manifests of the other snapshots, then deletes blobs that no kept manifest references. A blob is deleted only if it is older than the grace period (24 hours by default). The grace period protects blobs that a backup in progress has uploaded but not yet committed. Pruning runs after a backup at most once per garbage collection interval (24 hours by default), or when you run **Prune old snapshots now**.
+
+## Network use and privacy
+
+The plugin connects to one host, `https://<account-id>.r2.cloudflarestorage.com`, using the R2 credentials you supply. It sends only these things to your bucket:
+
+- The contents of the files it backs up.
+- File paths, sizes, modification times, and hashes, inside each manifest.
+- The vault name and the creation time, inside `vault.json`.
+- A random device id, inside each manifest.
+
+The plugin has no telemetry. It calls no third-party service and no Cloudflare API other than the R2 S3 endpoint. Network requests happen only when a backup, restore, prune, connection test, or usage estimate runs.
+
+The access key ID, the secret access key, and the encryption passphrase are stored in Obsidian's secret storage. The plugin's `data.json` file holds only the names of those secrets, never their values.
+
+With encryption off, everything in the bucket is plaintext. Blobs are the raw file contents. Manifests list every file name and path in the vault. Anyone with read access to the bucket can read your notes.
+
+With encryption on, blobs and manifests are encrypted before they leave the device. Some facts stay visible to anyone who can list the bucket:
+
+- Object sizes.
+- Snapshot times, because they are part of each snapshot id.
+- The number of blobs, which roughly tracks the number of distinct files.
+- The vault name, the encryption salt, and the iteration count in `vault.json`, which is never encrypted.
+
+## Setup
+
+You need a Cloudflare account with R2 enabled. Obsidian 1.11.4 or later is required, because the plugin uses Obsidian's secret storage.
+
+1. In the Cloudflare dashboard, go to **R2 object storage** and create a bucket.
+2. On the R2 overview page, select **Manage** next to **API tokens**.
+3. Select **Create Account API token**.
+4. Give the token the **Object Read & Write** permission and apply it to the bucket you created only.
+5. Create the token, then copy the **Access Key ID** and the **Secret Access Key**. Cloudflare shows the secret once.
+6. Copy your account ID from the R2 overview page. It is 32 hex characters.
+7. In Obsidian, open **Settings → R2 Vault Sync**.
+8. Under **Connection**, enter the account ID, the bucket name, and a prefix. The default prefix is `obsidian`. One bucket can hold several vaults under one prefix.
+9. Add the access key ID and the secret access key in their secret fields.
+10. Select **Test connection**.
+
+The connection test writes a small probe object under `<prefix>/<vaultId>/`, reads it back, and deletes it. Success shows `Write OK, Read OK, Delete OK`.
+
+You type the bucket name because a token scoped to one bucket cannot list buckets.
+
+## Backing up
+
+You can start a backup in three ways:
+
+- Run the **Back up now** command.
+- Select the **Back up vault to R2** ribbon icon (a cloud with an up arrow).
+- Select the status bar item on desktop.
+
+Scheduled backups run every hour by default. **Backup interval** offers off, 15 minutes, 30 minutes, and 1, 3, 6, 12, or 24 hours. A scheduled backup waits until you have stopped editing for the quiet period, which is 90 seconds by default. Turn on **Back up on startup** to run a backup 30 seconds after the workspace loads.
+
+By default a backup includes every note and attachment in the vault and the configuration folder (`.obsidian` unless you changed it). The configuration folder holds your plugins, themes, and snippets. These files are always skipped:
+
+- `workspace.json` and `workspace-mobile.json` in the configuration folder.
+- This plugin's own `data.json`, `index.json`, and `log.json`.
+
+Folders that start with a dot, such as `.trash` and `.git`, are not scanned. Turn off **Include configuration folder** to skip the configuration folder entirely.
+
+**Exclude patterns** takes one glob per line, such as `Templates/**` or `*.pdf`. A pattern without a slash also matches the file name in any folder.
+
+Files larger than the size cap are skipped and listed in the snapshot as too large. The cap is 50 MB on desktop and 20 MB on mobile. You can change both under **What to back up**.
+
+On desktop, the status bar shows the current state of a backup. On every platform, **Settings → R2 Vault Sync → Backup log → View log** lists the last 100 runs with their result, the number and size of uploaded files, and any error.
+
+## Restoring
+
+Run **Open restore browser** to open the restore panel in the right sidebar. The panel lists snapshots and the files in each one.
+
+For a single file you can:
+
+- **Diff** a text file against the current version in your vault. Diffs work for text files up to 1 MB, such as `.md`, `.canvas`, `.json`, and `.css`.
+- **Restore as copy**, which writes the snapshot version next to the original. `Notes/a.md` becomes `Notes/a (restored 2026-10-16).md`.
+- **Restore and overwrite**, which replaces the file in your vault after you confirm.
+
+You can also restore a whole snapshot, either into a folder or in place over your vault. A restore skips any file whose current contents already match the snapshot. Every download is checked against its hash before the plugin writes it.
+
+Restores into the configuration folder are refused unless you opt in for that restore. The plugin's own `data.json`, `index.json`, and `log.json` are never restored. The reason is that a restored configuration folder can contain plugin code, and Obsidian runs that code the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore, reload Obsidian so the restored settings take effect.
+
+## Encryption
+
+Encryption is optional and off by default. Turn it on with **Encrypt backups**, then add a passphrase.
+
+The plugin derives keys from the passphrase with PBKDF2-SHA256 at 600,000 iterations and a random 16-byte salt. It encrypts every blob and manifest with AES-GCM and a random IV per object. Blob names are an HMAC-SHA256 of the contents, so someone holding the bucket cannot confirm that it contains a file they already have.
+
+If you lose the passphrase, nobody can read the backup. Cloudflare cannot recover it, and neither can the plugin. Keep a copy of the passphrase outside the vault.
+
+The first backup records whether a backup set is encrypted. Switching encryption on or off for an existing backup set fails with an error. To switch, change the prefix so the plugin starts a new backup set. The next backup then uploads every file again.
+
+Encrypted blobs and manifests are unreadable in the R2 dashboard. You can restore them only through the plugin.
+
+## Retention and cost
+
+Retention keeps the union of these sets of snapshots:
+
+| Setting | Default | Keeps |
+| --- | --- | --- |
+| **Keep latest** | 10 | The most recent snapshots |
+| **Keep daily** | 7 | The newest snapshot of each of the last days that have one |
+| **Keep weekly** | 4 | The newest snapshot of each ISO week |
+| **Keep monthly** | 6 | The newest snapshot of each month |
+| **Grace period before deleting unreferenced data (hours)** | 24 | Unreferenced blobs younger than this |
+| **Garbage collection interval (hours)** | 24 | Minimum time between automatic prunes |
+
+The newest snapshot is always kept. If all four keep settings are 0, every snapshot is kept.
+
+**Usage and cost** in the settings shows an estimate for the current month. Stored data is the total size of the unique blobs referenced by all snapshots. Operations are the class A and class B requests this device has made this month, scaled to the full month. The estimate subtracts the free tier and prices the rest.
+
+The prices in the plugin are as of 2026-10-16:
+
+| Item | Price | Free each month |
+| --- | --- | --- |
+| Storage | $0.015 per GB-month | 10 GB-month |
+| Class A operations (writes, lists) | $4.50 per million | 1 million |
+| Class B operations (reads) | $0.36 per million | 10 million |
+
+Check current prices on the [Cloudflare R2 pricing page](https://developers.cloudflare.com/r2/pricing/). The free tier applies to your whole Cloudflare account. Other buckets and other devices use the same allowance, so the estimate can show $0.00 while your bill does not.
+
+## Mobile
+
+The plugin works on iOS and Android. It uses only Obsidian and web APIs, with no Node or Electron APIs.
+
+On mobile:
+
+- Scheduled backups run only while Obsidian is open in the foreground. The operating system pauses timers when the app is in the background.
+- The default size cap is 20 MB, because the plugin holds each file in memory while it hashes and uploads it.
+- Uploads run two at a time instead of four.
+- The status bar is not shown. Use the command, the ribbon icon, or the backup log.
+
+## Limitations
+
+- Backup is one-way. The plugin never pulls changes from the bucket on its own.
+- A restore never deletes local files. Files created after a snapshot stay in place when you restore that snapshot.
+- Files over the size cap are skipped.
+- Backups run only while Obsidian is open.
+- Devices that share a `vaultId` write snapshots into the same backup set, and the snapshots interleave. This happens when another tool, such as Obsidian Sync, syncs the plugin's `data.json` between devices. Each manifest records the device id that wrote it.
+
+## Development
+
+This project uses [Bun](https://bun.sh) to run the scripts in `package.json`.
+
+```bash
+bun install
+bun run dev        # build in watch mode
+bun run build      # type check and production build
+bun run test       # unit tests
+bun run lint
 ```
 
-## API Documentation
+The integration tests run against a real R2 bucket. Create a `.env` file in the repository root:
 
-See https://docs.obsidian.md
+```
+R2_ACCOUNT_ID=<32 character account id>
+R2_BUCKET=<bucket name>
+R2_KEY_ID=<access key id>
+R2_SECRET=<secret access key>
+```
+
+Then run `bun run test:int`. The `.env` file is ignored by git.
+
+To test the plugin in a vault, copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/r2-vault-sync/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
+
+## License
+
+R2 Vault Sync is released under the 0BSD license. See [LICENSE](LICENSE).
