@@ -43,6 +43,11 @@ export default defineConfig(
 	},
 	{
 		files: ['test/**/*.ts'],
-		rules: { 'obsidianmd/hardcoded-config-path': 'off' },
+		rules: {
+			'obsidianmd/hardcoded-config-path': 'off',
+			'obsidianmd/no-nodejs-modules': 'off',
+			'obsidianmd/prefer-window-timers': 'off',
+			'no-restricted-globals': 'off',
+		},
 	},
 );
