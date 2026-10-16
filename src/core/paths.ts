@@ -98,17 +98,12 @@ export function isIncluded(path: string, opts: IncludeOptions): boolean {
 	return !opts.excludeGlobs.some((g) => matchGlob(g, path));
 }
 
-const RESERVED_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
-
+// Structural checks only: anything the host file system rejects fails per file at write time.
 export function isSafeVaultPath(path: string): boolean {
 	if (path === '' || path.length > 1024) return false;
-	if (path.startsWith('/') || path.includes('\\') || path.includes('\0') || path.includes(':')) return false;
-	return path
-		.split('/')
-		.every(
-			(seg) =>
-				seg !== '' && seg !== '.' && seg !== '..' && !seg.endsWith('.') && !seg.endsWith(' ') && !RESERVED_DEVICE.test(seg),
-		);
+	if (path.startsWith('/') || path.includes('\\') || path.includes('\0')) return false;
+	if (/^[a-zA-Z]:/.test(path)) return false;
+	return path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
 }
 
 // NFKC folds compatibility look-alikes (Kelvin sign, ligatures) so the gate errs towards "inside".
