@@ -34,10 +34,15 @@ export default defineConfig(
 	{
 		files: ['src/core/**/*.ts'],
 		rules: {
+			'obsidianmd/prefer-window-timers': 'off',
 			'no-restricted-imports': [
 				'error',
 				{ paths: [{ name: 'obsidian', message: 'src/core must stay free of the Obsidian API.' }] },
 			],
 		},
+	},
+	{
+		files: ['test/**/*.ts'],
+		rules: { 'obsidianmd/hardcoded-config-path': 'off' },
 	},
 );
