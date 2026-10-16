@@ -55,6 +55,15 @@ describe('acquireLock', () => {
 		expect(stored()!.runId).toBe(second!.record.runId);
 	});
 
+	it('takes over a live lock this device left behind when it was killed', async () => {
+		const { r2, opts, stored } = setup();
+		const dead = await acquireLock(r2, KEY, opts('a'));
+		const rerun = await acquireLock(r2, KEY, opts('a'));
+		expect(rerun!.record.runId).not.toBe(dead!.record.runId);
+		expect(stored()).toEqual(rerun!.record);
+		expect(await dead!.refresh()).toBe(false);
+	});
+
 	it('does not take over a lock that expires one millisecond after the server time', async () => {
 		const { r2, opts } = setup();
 		await acquireLock(r2, KEY, opts('a'));

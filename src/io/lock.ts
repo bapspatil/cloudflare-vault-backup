@@ -57,8 +57,10 @@ async function claim(
 		const held = parseLockRecord(existing.body);
 		// The client retries after network errors, so a 412 can be our own create landing on an earlier attempt.
 		if (held !== null && held.runId === record.runId) return { record: held, etag: existing.etag };
-		// A corrupt record has no live holder that could refresh it, so it is treated as expired.
-		if (held !== null && Date.parse(held.expiresAt) > existing.serverDate) return null;
+		// A corrupt record has no live holder that could refresh it, so it is treated as expired. Neither does
+		// a live record from this device: runs never overlap within one vault, so it was left by a killed process.
+		const live = held !== null && Date.parse(held.expiresAt) > existing.serverDate;
+		if (live && held.deviceId !== record.deviceId) return null;
 
 		const taken = recordAt();
 		const takeover = await client.put(key, encodeRecord(taken), {
