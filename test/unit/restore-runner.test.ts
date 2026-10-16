@@ -71,7 +71,7 @@ describe('config folder protection', () => {
 	});
 
 	it('always refuses this plugin\'s own state files', async () => {
-		const path = '.obsidian/plugins/r2-vault-sync/data.json';
+		const path = '.obsidian/plugins/cloudflare-vault-backup/data.json';
 		const { deps, manifest } = await withConfigFile(path);
 		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, { kind: 'overwrite' });
 		expect(result.detail).toBe('refused: plugin state file');
@@ -125,7 +125,7 @@ describe('config folder protection', () => {
 	});
 
 	it('always refuses an HFS+ ignorable variant of this plugin\'s state file', async () => {
-		const path = '.obs\u200Cidian/plugins/r2-vault-sync/data\uFEFF.json';
+		const path = '.obs\u200Cidian/plugins/cloudflare-vault-backup/data\uFEFF.json';
 		const { deps, manifest, vault } = await withConfigFile(path);
 		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, { kind: 'overwrite' });
 		expect(result.outcome).toBe('failed');

@@ -4,7 +4,7 @@
 set -euo pipefail
 vault="${1:?vault path required}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-dest="$vault/.obsidian/plugins/r2-vault-sync"
+dest="$vault/.obsidian/plugins/cloudflare-vault-backup"
 mkdir -p "$dest"
 cp "$root/main.js" "$root/manifest.json" "$root/styles.css" "$dest/"
 echo "installed into $dest"

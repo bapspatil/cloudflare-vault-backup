@@ -1,4 +1,5 @@
-export const PLUGIN_ID = 'r2-vault-sync';
+export const PLUGIN_ID = 'cloudflare-vault-backup';
+export const LEGACY_PLUGIN_ID = 'r2-vault-sync';
 export const SETTINGS_VERSION = 1;
 
 export interface ConnectionSettings {
