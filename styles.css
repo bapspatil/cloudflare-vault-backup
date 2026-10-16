@@ -39,3 +39,115 @@ If your plugin does not need CSS, delete this file.
 .r2-vault-sync-log-failed {
 	color: var(--text-error);
 }
+
+.r2-vault-sync-restore {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-2);
+}
+
+.r2-vault-sync-restore-header,
+.r2-vault-sync-restore-footer {
+	display: flex;
+	gap: var(--size-4-2);
+	align-items: center;
+}
+
+.r2-vault-sync-restore-snapshots {
+	flex: 1;
+	min-width: 0;
+}
+
+.r2-vault-sync-restore-message {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+
+.r2-vault-sync-restore-error {
+	color: var(--text-error);
+}
+
+.r2-vault-sync-restore-children {
+	padding-left: var(--size-4-4);
+}
+
+.r2-vault-sync-restore-row {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	padding: var(--size-2-1) var(--size-4-1);
+	border-radius: var(--radius-s);
+}
+
+.r2-vault-sync-restore-row:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+.r2-vault-sync-restore-folder {
+	cursor: var(--cursor);
+}
+
+.r2-vault-sync-restore-chevron {
+	display: flex;
+	color: var(--text-muted);
+}
+
+.r2-vault-sync-restore-name {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.r2-vault-sync-restore-size {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
+}
+
+.r2-vault-sync-restore-actions {
+	display: flex;
+	gap: var(--size-2-2);
+}
+
+.r2-vault-sync-restore-actions button {
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-2-1) var(--size-2-3);
+	height: auto;
+}
+
+.r2-vault-sync-restore-failures {
+	color: var(--text-error);
+	font-size: var(--font-ui-small);
+}
+
+.r2-vault-sync-diff-modal {
+	width: min(900px, 90vw);
+}
+
+.r2-vault-sync-diff {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	max-height: 60vh;
+	overflow: auto;
+	user-select: text;
+}
+
+.r2-vault-sync-diff-line {
+	display: block;
+	white-space: pre;
+}
+
+.r2-vault-sync-diff-hunk {
+	color: var(--text-muted);
+	margin-top: var(--size-4-2);
+}
+
+.r2-vault-sync-diff-removed {
+	color: var(--text-error);
+}
+
+.r2-vault-sync-diff-added {
+	color: var(--text-success);
+}

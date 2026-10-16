@@ -17,6 +17,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 	private scheduler!: Scheduler;
 	private statusBar: StatusBar | null = null;
 	private lastRunEndedAt: number | null = null;
+	private exclusiveTasks = 0;
 	private readonly stateListeners = new Set<(s: RunState) => void>();
 
 	async onload() {
@@ -67,7 +68,16 @@ export default class R2VaultSyncPlugin extends Plugin {
 	}
 
 	isRunning(): boolean {
-		return !['idle', 'done', 'failed'].includes(this.state.kind);
+		return this.exclusiveTasks > 0 || !['idle', 'done', 'failed'].includes(this.state.kind);
+	}
+
+	async runExclusive<T>(task: () => Promise<T>): Promise<T> {
+		this.exclusiveTasks++;
+		try {
+			return await task();
+		} finally {
+			this.exclusiveTasks--;
+		}
 	}
 
 	onState(listener: (s: RunState) => void): () => void {
