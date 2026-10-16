@@ -70,7 +70,30 @@ describe('manifest codec', () => {
 	});
 });
 
+describe('manifest path safety', () => {
+	it('rejects a manifest whose file path escapes the vault', () => {
+		const bytes = new TextEncoder().encode(
+			JSON.stringify({
+				format: 1, id: '20261016T162233Z-3fa9', createdAt: 'x', deviceId: 'd', pluginVersion: '0.1.0',
+				blobScheme: 'sha256', totals: { files: 1, bytes: 1 },
+				files: { '../escape.md': { h: 'ab', s: 1, m: 1 } }, skipped: [],
+			}),
+		);
+		expect(decodeManifest(bytes)).toEqual({ ok: false, error: 'corrupt' });
+	});
+});
+
 describe('vault descriptor codec', () => {
+	it('rejects out-of-range KDF iterations', () => {
+		const make = (iterations: number) =>
+			new TextEncoder().encode(JSON.stringify({
+				format: 1, vaultId: 'v', vaultName: 'n', createdAt: 'c',
+				encryption: { kdf: 'PBKDF2-SHA256', iterations, salt: 'c2FsdA==', check: 'Y2hlY2s=' },
+			}));
+		expect(decodeVaultDescriptor(make(10))).toEqual({ ok: false, error: 'corrupt' });
+		expect(decodeVaultDescriptor(make(50_000_000))).toEqual({ ok: false, error: 'corrupt' });
+		expect(decodeVaultDescriptor(make(600_000)).ok).toBe(true);
+	});
 	const plain: VaultDescriptor = {
 		format: 1,
 		vaultId: '0123456789abcdef',

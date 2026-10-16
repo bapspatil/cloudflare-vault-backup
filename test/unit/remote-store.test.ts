@@ -51,6 +51,15 @@ describe('descriptor', () => {
 });
 
 describe('manifests', () => {
+	it('rejects a manifest stored under a different snapshot id', async () => {
+		const r2 = createFakeR2();
+		const store = createRemoteStore(r2, ROOT, plainSealer());
+		await store.writeManifest(manifest('20260101T000000Z-aaaa'));
+		const body = r2.objects.get('backups/v1/snapshots/20260101T000000Z-aaaa.json')!.body;
+		await r2.put('backups/v1/snapshots/20260102T000000Z-bbbb.json', body);
+		await expect(store.readManifest('20260102T000000Z-bbbb')).rejects.toThrow('id mismatch');
+	});
+
 	it('writes once then reports exists', async () => {
 		const store = createRemoteStore(createFakeR2(), ROOT, plainSealer());
 		expect(await store.writeManifest(manifest('20260101T000000Z-aaaa'))).toBe('written');

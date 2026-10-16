@@ -47,6 +47,7 @@ export function createRemoteStore(client: R2Client, root: string, sealer: Sealer
 			if (!res.ok) return null;
 			const decoded = decodeManifest(await sealer.open(res.body));
 			if (!decoded.ok) throw new Error(`format: manifest ${id} ${decoded.error}`);
+			if (decoded.value.id !== id) throw new Error(`format: manifest ${id} id mismatch`);
 			return decoded.value;
 		},
 

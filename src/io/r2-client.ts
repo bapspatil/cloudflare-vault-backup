@@ -82,6 +82,9 @@ export function createR2Client(creds: R2Credentials, transport: Transport, opts:
 	const random = opts.random ?? Math.random;
 	const maxAttempts = Math.max(1, opts.maxAttempts ?? 5);
 	const timeoutMs = opts.timeoutMs ?? 30_000;
+	if (!/^[0-9a-f]{32}$/i.test(creds.accountId)) {
+		throw new R2Error(0, 'config', 'Account ID must be 32 hexadecimal characters');
+	}
 	const origin = `https://${creds.accountId}.r2.cloudflarestorage.com`;
 
 	let counters: OpCounters =

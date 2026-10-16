@@ -12,10 +12,14 @@ import {
 	type SkippedFile,
 	type VaultDescriptor,
 } from './types';
+import { isSafeVaultPath } from './paths';
 
 type Json = Record<string, unknown>;
 
 class Corrupt extends Error {}
+
+export const MIN_KDF_ITERATIONS = 100_000;
+export const MAX_KDF_ITERATIONS = 10_000_000;
 
 const BLOB_SCHEMES: readonly BlobScheme[] = ['sha256', 'hmac-sha256'];
 const SKIP_REASONS: readonly SkipReason[] = ['too-large', 'unreadable'];
@@ -56,13 +60,18 @@ function fileEntry(v: unknown): FileEntry {
 
 function fileMap(v: unknown): Record<string, FileEntry> {
 	const out: Record<string, FileEntry> = {};
-	for (const [path, entry] of Object.entries(record(v))) out[path] = fileEntry(entry);
+	for (const [path, entry] of Object.entries(record(v))) {
+		if (!isSafeVaultPath(path)) throw new Corrupt();
+		out[path] = fileEntry(entry);
+	}
 	return out;
 }
 
 function skippedFile(v: unknown): SkippedFile {
 	const o = record(v);
-	return { path: str(o.path), reason: oneOf(o.reason, SKIP_REASONS), size: count(o.size) };
+	const path = str(o.path);
+	if (!isSafeVaultPath(path)) throw new Corrupt();
+	return { path, reason: oneOf(o.reason, SKIP_REASONS), size: count(o.size) };
 }
 
 function sortedFiles(files: Record<string, FileEntry>): Record<string, FileEntry> {
@@ -141,7 +150,9 @@ export function encodeVaultDescriptor(d: VaultDescriptor): Uint8Array {
 function encryptionDescriptor(v: unknown): EncryptionDescriptor {
 	const o = record(v);
 	const iterations = count(o.iterations);
-	if (!Number.isInteger(iterations) || iterations < 1) throw new Corrupt();
+	if (!Number.isInteger(iterations) || iterations < MIN_KDF_ITERATIONS || iterations > MAX_KDF_ITERATIONS) {
+		throw new Corrupt();
+	}
 	return { kdf: oneOf(o.kdf, ['PBKDF2-SHA256'] as const), iterations, salt: str(o.salt), check: str(o.check) };
 }
 

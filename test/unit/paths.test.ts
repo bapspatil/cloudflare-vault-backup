@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	backupRoot, blobKey, blobsPrefix, defaultExcludes, descriptorKey, hashFromBlobKey, isIncluded,
-	isTextPath, lockKey, matchGlob, restoredCopyPath, snapshotIdFromKey, snapshotKey, snapshotsPrefix,
+	isSafeVaultPath, isTextPath, lockKey, matchGlob, restoredCopyPath, snapshotIdFromKey, snapshotKey, snapshotsPrefix,
 } from '../../src/core/paths';
 
 describe('key builders', () => {
@@ -146,5 +146,24 @@ describe('restoredCopyPath', () => {
 		['日本/メモ.md', '日本/メモ (restored 2026-10-16).md'],
 	])('restoredCopyPath(%j)', (path, expected) => {
 		expect(restoredCopyPath(path, '2026-10-16')).toBe(expected);
+	});
+});
+
+describe('isSafeVaultPath', () => {
+	it.each([
+		['Notes/a.md', true],
+		['.obsidian/plugins/x/data.json', true],
+		['Üñí/çødé.md', true],
+		['', false],
+		['/etc/passwd', false],
+		['../x.md', false],
+		['a/../b.md', false],
+		['a/./b.md', false],
+		['a//b.md', false],
+		['a\\b.md', false],
+		['C:/x.md', false],
+		['a\0b', false],
+	])('%j -> %s', (path, ok) => {
+		expect(isSafeVaultPath(path)).toBe(ok);
 	});
 });

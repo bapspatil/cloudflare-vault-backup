@@ -3,7 +3,7 @@ import { createR2Client, encodeKey } from '../../src/io/r2-client';
 import { R2Error } from '../../src/io/types';
 import type { R2Credentials, TransportRequest, TransportResponse } from '../../src/io/types';
 
-const creds: R2Credentials = { accountId: 'acct', bucket: 'bkt', accessKeyId: 'KEYID', secretAccessKey: 'secret' };
+const creds: R2Credentials = { accountId: '0123456789abcdef0123456789abcdef', bucket: 'bkt', accessKeyId: 'KEYID', secretAccessKey: 'secret' };
 const NOW = Date.UTC(2026, 9, 16, 12, 0, 0);
 const enc = new TextEncoder();
 
@@ -40,7 +40,7 @@ describe('createR2Client', () => {
 		expect(res).toEqual({ ok: true, etag: 'abc' });
 		const req = t.requests[0]!;
 		expect(req.method).toBe('PUT');
-		expect(req.url).toBe('https://acct.r2.cloudflarestorage.com/bkt/a.txt');
+		expect(req.url).toBe('https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/bkt/a.txt');
 		expect(req.headers['authorization']).toContain('AWS4-HMAC-SHA256');
 		expect(req.headers['authorization']).toContain('Credential=KEYID/20261016/auto/s3/aws4_request');
 		expect(req.headers['x-amz-content-sha256']).toBe('UNSIGNED-PAYLOAD');
@@ -51,7 +51,7 @@ describe('createR2Client', () => {
 	it('percent-encodes each key segment and keeps slashes', async () => {
 		const t = fake([{ status: 200 }]);
 		await client(t).get('notes/my file (1)/café.md');
-		expect(t.requests[0]!.url).toBe('https://acct.r2.cloudflarestorage.com/bkt/notes/my%20file%20%281%29/caf%C3%A9.md');
+		expect(t.requests[0]!.url).toBe('https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/bkt/notes/my%20file%20%281%29/caf%C3%A9.md');
 		expect(encodeKey('a/b c')).toBe('a/b%20c');
 	});
 
@@ -153,7 +153,7 @@ describe('createR2Client', () => {
 		const page = await client(t).list('p/', { delimiter: '/', maxKeys: 2, token: 'a b' });
 		expect(page.nextToken).toBe('tok');
 		expect(t.requests[0]!.url).toBe(
-			'https://acct.r2.cloudflarestorage.com/bkt?list-type=2&prefix=p%2F&delimiter=%2F&max-keys=2&continuation-token=a%20b',
+			'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/bkt?list-type=2&prefix=p%2F&delimiter=%2F&max-keys=2&continuation-token=a%20b',
 		);
 	});
 
@@ -180,5 +180,13 @@ describe('createR2Client', () => {
 		expect(t.requests.every((r) => r.method === 'POST' && r.url.endsWith('/bkt?delete'))).toBe(true);
 		expect(res.failed).toEqual(['k1200']);
 		expect(res.deleted).toHaveLength(1499);
+	});
+});
+
+describe('credential validation', () => {
+	it('refuses an account id that is not 32 hex characters', () => {
+		expect(() => createR2Client({ ...creds, accountId: 'evil.example.com/' }, async () => ({ status: 200, headers: {}, body: new Uint8Array() }))).toThrow(
+			/32 hexadecimal/,
+		);
 	});
 });

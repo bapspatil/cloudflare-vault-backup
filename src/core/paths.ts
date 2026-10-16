@@ -99,6 +99,13 @@ export function isIncluded(path: string, opts: IncludeOptions): boolean {
 	return !opts.excludeGlobs.some((g) => matchGlob(g, path));
 }
 
+export function isSafeVaultPath(path: string): boolean {
+	if (path === '' || path.length > 1024) return false;
+	if (path.startsWith('/') || path.includes('\\') || path.includes('\0')) return false;
+	if (/^[a-zA-Z]:/.test(path)) return false;
+	return path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+}
+
 export function isTextPath(path: string): boolean {
 	const base = path.slice(path.lastIndexOf('/') + 1);
 	const dot = base.lastIndexOf('.');

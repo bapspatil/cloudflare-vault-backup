@@ -1,5 +1,11 @@
 import { Platform, normalizePath, type App } from 'obsidian';
+import { isSafeVaultPath } from '../core/paths';
 import type { VaultFileStat, VaultPort } from './types';
+
+function checked(path: string): string {
+	if (!isSafeVaultPath(path)) throw new Error(`io: refused unsafe path ${JSON.stringify(path)}`);
+	return path;
+}
 
 function toArrayBuffer(data: Uint8Array): ArrayBuffer {
 	const out = new ArrayBuffer(data.byteLength);
@@ -53,13 +59,15 @@ export function createObsidianVaultPort(app: App, pluginId: string): VaultPort {
 			return out;
 		},
 
-		async read(path) {
+		async read(rawPath) {
+			const path = checked(rawPath);
 			const file = vault.getFileByPath(path);
 			const buf = file ? await vault.readBinary(file) : await adapter.readBinary(normalizePath(path));
 			return new Uint8Array(buf);
 		},
 
-		async write(path, data) {
+		async write(rawPath, data) {
+			const path = checked(rawPath);
 			await ensureFolder(parentOf(path));
 			const buf = toArrayBuffer(data);
 			const file = vault.getFileByPath(path);
