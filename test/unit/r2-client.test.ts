@@ -190,3 +190,17 @@ describe('credential validation', () => {
 		);
 	});
 });
+
+describe('etag normalisation', () => {
+	it('strips the weak validator prefix so If-Match round-trips', async () => {
+		const requests: TransportRequest[] = [];
+		const client = createR2Client(creds, async (req) => {
+			requests.push(req);
+			return { status: 200, headers: { ETag: 'W/"abc123"' }, body: new Uint8Array() };
+		});
+		const got = await client.get('k');
+		expect(got).toMatchObject({ ok: true, etag: 'abc123' });
+		await client.put('k', 'x', { condition: { ifMatch: got.ok ? got.etag : '' } });
+		expect(requests[1]!.headers['if-match']).toBe('"abc123"');
+	});
+});

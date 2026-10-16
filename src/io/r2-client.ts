@@ -45,7 +45,8 @@ export function encodeKey(key: string): string {
 }
 
 function stripQuotes(etag: string | undefined): string {
-	return (etag ?? '').replace(/^"+|"+$/g, '');
+	// R2 serves compressed JSON with a weak validator; If-Match needs the strong form.
+	return (etag ?? '').replace(/^W\//, '').replace(/^"+|"+$/g, '');
 }
 
 function lowerKeys(h: Record<string, string>): Record<string, string> {

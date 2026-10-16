@@ -1,10 +1,11 @@
 import type { RunState } from '../core/types';
 import type { Settings } from '../settings';
-import type { LocalState, RemoteStore, R2Client, VaultPort } from '../io/types';
+import type { LocalState, RemoteStore, R2Client, Sealer, VaultPort } from '../io/types';
 
 export interface BackupContext {
 	vault: VaultPort;
 	store: RemoteStore;
+	sealer: Sealer;
 	client: R2Client;
 	local: LocalState;
 	settings: Settings;
