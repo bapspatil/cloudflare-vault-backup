@@ -51,9 +51,42 @@ With encryption on, blobs and manifests are encrypted before they leave the devi
 - The number of blobs, which roughly tracks the number of distinct files.
 - The vault name, the encryption salt, and the iteration count in `vault.json`, which is never encrypted.
 
+## Installation
+
+R2 Vault Sync needs Obsidian 1.11.4 or later on desktop or mobile.
+
+### From Community plugins
+
+1. In Obsidian, open **Settings → Community plugins**.
+2. If restricted mode is on, select **Turn on community plugins**.
+3. Select **Browse**, then search for **R2 Vault Sync**.
+4. Select **Install**, then **Enable**.
+
+### With BRAT
+
+Use [BRAT](https://github.com/TfTHacker/obsidian42-brat) to install the plugin before it appears in Community plugins, or to get updates from GitHub as soon as they are released.
+
+1. Install and enable **BRAT** from **Settings → Community plugins**.
+2. Run the **BRAT: Add a beta plugin for testing** command.
+3. Enter `https://github.com/bapspatil/r2-vault-sync` and select **Add plugin**.
+4. Enable **R2 Vault Sync** in **Settings → Community plugins**.
+
+### Manually
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/bapspatil/r2-vault-sync/releases/latest).
+2. In your vault, create the folder `<Vault>/.obsidian/plugins/r2-vault-sync/`. If you changed the configuration folder, use that folder instead of `.obsidian`.
+3. Copy the three files into that folder.
+4. Reload Obsidian, then enable **R2 Vault Sync** in **Settings → Community plugins**.
+
+To update a manual install, replace the three files with the ones from the newer release and reload Obsidian.
+
+### Updating
+
+Update the plugin on every device that backs up to the same backup set at the same time. Newer versions can read backups made by older versions, but an older version cannot always read backups made by a newer one. An older version that cannot read a snapshot fails with an error and changes nothing.
+
 ## Setup
 
-You need a Cloudflare account with R2 enabled. Obsidian 1.11.4 or later is required, because the plugin uses Obsidian's secret storage.
+You need a Cloudflare account with R2 enabled. The plugin needs Obsidian 1.11.4 or later because it stores your credentials in Obsidian's secret storage.
 
 1. In the Cloudflare dashboard, go to **R2 object storage** and create a bucket.
 2. On the R2 overview page, select **Manage** next to **API tokens**.
@@ -116,7 +149,7 @@ Restoring into the configuration folder needs an extra confirmation, because tha
 
 Encryption is optional and off by default. Turn it on with **Encrypt backups**, then add a passphrase.
 
-The plugin derives keys from the passphrase with PBKDF2-SHA256 at 600,000 iterations and a random 16-byte salt. It encrypts every blob and manifest with AES-GCM and a random IV per object. Blob names are an HMAC-SHA256 of the contents, so someone holding the bucket cannot confirm that it contains a file they already have.
+The plugin derives keys from the passphrase with PBKDF2-SHA256 at 600,000 iterations and a random 16-byte salt. It encrypts every blob and manifest with AES-GCM and a random IV per object. Each encrypted object is bound to its role and name, so an object copied to another key in the bucket fails to decrypt instead of being read as something else. Blob names are an HMAC-SHA256 of the contents, so someone holding the bucket cannot confirm that it contains a file they already have.
 
 If you lose the passphrase, nobody can read the backup. Cloudflare cannot recover it, and neither can the plugin. Keep a copy of the passphrase outside the vault.
 
@@ -193,7 +226,7 @@ R2_SECRET=<secret access key>
 
 Then run `bun run test:int`. The `.env` file is ignored by git.
 
-To test the plugin in a vault, copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/r2-vault-sync/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
+To test a local build in a vault, run `bun run build` and copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/r2-vault-sync/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
 
 ## Author
 
