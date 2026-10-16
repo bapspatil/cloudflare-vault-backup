@@ -98,25 +98,32 @@ export function isIncluded(path: string, opts: IncludeOptions): boolean {
 	return !opts.excludeGlobs.some((g) => matchGlob(g, path));
 }
 
+const RESERVED_DEVICE = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
+
 export function isSafeVaultPath(path: string): boolean {
 	if (path === '' || path.length > 1024) return false;
 	if (path.startsWith('/') || path.includes('\\') || path.includes('\0') || path.includes(':')) return false;
 	return path
 		.split('/')
-		.every((seg) => seg !== '' && seg !== '.' && seg !== '..' && !seg.endsWith('.') && !seg.endsWith(' '));
+		.every(
+			(seg) =>
+				seg !== '' && seg !== '.' && seg !== '..' && !seg.endsWith('.') && !seg.endsWith(' ') && !RESERVED_DEVICE.test(seg),
+		);
 }
 
-const canonicalSegments = (path: string): string[] =>
-	path.normalize('NFC').toLowerCase().split('/');
+// NFKC folds compatibility look-alikes (Kelvin sign, ligatures) so the gate errs towards "inside".
+const fold = (s: string): string => s.normalize('NFKC').toLowerCase();
+const SHORT_NAME = /~\d/;
 
 export function isUnderConfigDir(path: string, configDir: string): boolean {
-	const dir = canonicalSegments(configDir);
-	const segs = canonicalSegments(path);
-	return segs.length >= dir.length && dir.every((d, i) => segs[i] === d);
+	const dir = fold(configDir).split('/');
+	const segs = fold(path).split('/');
+	if (segs.length < dir.length) return false;
+	return dir.every((d, i) => segs[i] === d || SHORT_NAME.test(segs[i] ?? ''));
 }
 
 export function samePath(a: string, b: string): boolean {
-	return a.normalize('NFC').toLowerCase() === b.normalize('NFC').toLowerCase();
+	return fold(a) === fold(b);
 }
 
 export function isTextPath(path: string): boolean {

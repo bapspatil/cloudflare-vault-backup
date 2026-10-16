@@ -178,6 +178,9 @@ describe('isUnderConfigDir', () => {
 		['cfg/app.json', 'cfg', true],
 		['Cfg/app.json', 'cfg', true],
 		['cfgx/app.json', 'cfg', false],
+		['.obsidian/plugins/x/main.js', '.obsidian', true],
+		['\u212Afg/app.json', 'kfg', true],
+		['OBSIDI~1/plugins/x/main.js', '.obsidian', true],
 	])('%s under %s -> %s', (path, dir, expected) => {
 		expect(isUnderConfigDir(path, dir)).toBe(expected);
 	});
