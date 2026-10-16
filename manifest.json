@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"id": "r2-vault-sync",
+	"name": "R2 Vault Sync",
+	"version": "0.1.0",
+	"minAppVersion": "1.11.4",
+	"description": "Back up your vault to your own Cloudflare R2 bucket with versioned snapshots, per-note restore and optional encryption.",
+	"author": "Bapusaheb Patil",
+	"authorUrl": "https://github.com/bapspatil",
 	"isDesktopOnly": false
 }

@@ -5,13 +5,15 @@ import { globalIgnores, defineConfig } from 'eslint/config';
 export default defineConfig(
 	globalIgnores([
 		'node_modules',
+		'.claude',
+		'graft',
 		'dist',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
 		'versions.json',
 		'main.js',
 		'package.json',
-		'package-lock.json',
+		'bun.lock',
 		'tsconfig.json',
 	]),
 	{
@@ -29,4 +31,13 @@ export default defineConfig(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		files: ['src/core/**/*.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{ paths: [{ name: 'obsidian', message: 'src/core must stay free of the Obsidian API.' }] },
+			],
+		},
+	},
 );

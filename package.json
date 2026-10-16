@@ -1,27 +1,44 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
+	"name": "r2-vault-sync",
+	"version": "0.1.0",
+	"description": "Obsidian plugin that backs up a vault to Cloudflare R2",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"test": "vitest run --project unit",
+		"test:watch": "vitest --project unit",
+		"test:int": "vitest run --project integration"
 	},
-	"keywords": [],
+	"keywords": [
+		"obsidian",
+		"plugin",
+		"backup",
+		"cloudflare",
+		"r2"
+	],
 	"license": "0-BSD",
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
+		"@types/diff": "8.0.0",
 		"@types/node": "^22.15.17",
 		"esbuild": "0.25.5",
 		"eslint": "^9.39.4",
+		"eslint-import-resolver-node": "0.4.0",
 		"eslint-plugin-obsidianmd": "^0.4.0",
 		"globals": "^17.6.0",
+		"happy-dom": "21.0.3",
 		"jiti": "^2.6.1",
 		"obsidian": "latest",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.59.1"
+		"typescript-eslint": "^8.59.1",
+		"vitest": "5.0.5"
+	},
+	"dependencies": {
+		"aws4fetch": "1.0.20",
+		"diff": "9.0.0"
 	}
 }
