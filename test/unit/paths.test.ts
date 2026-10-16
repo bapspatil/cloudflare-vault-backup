@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	backupRoot, blobKey, blobsPrefix, defaultExcludes, descriptorKey, hashFromBlobKey, isIncluded,
-	isSafeVaultPath, isTextPath, lockKey, matchGlob, restoredCopyPath, snapshotIdFromKey, snapshotKey, snapshotsPrefix,
+	isSafeVaultPath, isTextPath, isUnderConfigDir, lockKey, matchGlob, restoredCopyPath, snapshotIdFromKey, snapshotKey, snapshotsPrefix,
 } from '../../src/core/paths';
 
 describe('key builders', () => {
@@ -165,5 +165,20 @@ describe('isSafeVaultPath', () => {
 		['a\0b', false],
 	])('%j -> %s', (path, ok) => {
 		expect(isSafeVaultPath(path)).toBe(ok);
+	});
+});
+
+describe('isUnderConfigDir', () => {
+	it.each([
+		['.obsidian/plugins/x/main.js', '.obsidian', true],
+		['.Obsidian/plugins/x/main.js', '.obsidian', true],
+		['.OBSIDIAN', '.obsidian', true],
+		['.obsidian-backup/x.md', '.obsidian', false],
+		['Notes/.obsidian/x.md', '.obsidian', false],
+		['cfg/app.json', 'cfg', true],
+		['Cfg/app.json', 'cfg', true],
+		['cfgx/app.json', 'cfg', false],
+	])('%s under %s -> %s', (path, dir, expected) => {
+		expect(isUnderConfigDir(path, dir)).toBe(expected);
 	});
 });

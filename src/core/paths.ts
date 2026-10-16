@@ -91,19 +91,32 @@ export interface IncludeOptions {
 }
 
 export function isIncluded(path: string, opts: IncludeOptions): boolean {
-	const inConfig = path === opts.configDir || path.startsWith(`${opts.configDir}/`);
-	if (inConfig) {
+	if (isUnderConfigDir(path, opts.configDir)) {
 		if (!opts.includeConfigDir) return false;
-		if (defaultExcludes(opts.configDir, opts.pluginId).includes(path)) return false;
+		if (defaultExcludes(opts.configDir, opts.pluginId).some((p) => samePath(p, path))) return false;
 	}
 	return !opts.excludeGlobs.some((g) => matchGlob(g, path));
 }
 
 export function isSafeVaultPath(path: string): boolean {
 	if (path === '' || path.length > 1024) return false;
-	if (path.startsWith('/') || path.includes('\\') || path.includes('\0')) return false;
-	if (/^[a-zA-Z]:/.test(path)) return false;
-	return path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+	if (path.startsWith('/') || path.includes('\\') || path.includes('\0') || path.includes(':')) return false;
+	return path
+		.split('/')
+		.every((seg) => seg !== '' && seg !== '.' && seg !== '..' && !seg.endsWith('.') && !seg.endsWith(' '));
+}
+
+const canonicalSegments = (path: string): string[] =>
+	path.normalize('NFC').toLowerCase().split('/');
+
+export function isUnderConfigDir(path: string, configDir: string): boolean {
+	const dir = canonicalSegments(configDir);
+	const segs = canonicalSegments(path);
+	return segs.length >= dir.length && dir.every((d, i) => segs[i] === d);
+}
+
+export function samePath(a: string, b: string): boolean {
+	return a.normalize('NFC').toLowerCase() === b.normalize('NFC').toLowerCase();
 }
 
 export function isTextPath(path: string): boolean {

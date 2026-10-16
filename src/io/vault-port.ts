@@ -1,5 +1,5 @@
 import { Platform, normalizePath, type App } from 'obsidian';
-import { isSafeVaultPath } from '../core/paths';
+import { isSafeVaultPath, isUnderConfigDir } from '../core/paths';
 import type { VaultFileStat, VaultPort } from './types';
 
 function checked(path: string): string {
@@ -38,12 +38,12 @@ export function createObsidianVaultPort(app: App, pluginId: string): VaultPort {
 		if (!(await adapter.exists(dir))) return;
 		const listing = await adapter.list(dir);
 		for (const file of listing.files) {
-			if (file !== configDir && !file.startsWith(`${configDir}/`)) continue;
+			if (!isUnderConfigDir(file, configDir)) continue;
 			const stat = await adapter.stat(file);
 			if (stat?.type === 'file') out.push({ path: file, size: stat.size, mtime: stat.mtime });
 		}
 		for (const folder of listing.folders) {
-			if (folder !== configDir && !folder.startsWith(`${configDir}/`)) continue;
+			if (!isUnderConfigDir(folder, configDir)) continue;
 			await walkConfigDir(folder, out);
 		}
 	}
@@ -72,7 +72,7 @@ export function createObsidianVaultPort(app: App, pluginId: string): VaultPort {
 			const buf = toArrayBuffer(data);
 			const file = vault.getFileByPath(path);
 			if (file) await vault.modifyBinary(file, buf);
-			else if (path.startsWith(`${configDir}/`)) await adapter.writeBinary(normalizePath(path), buf);
+			else if (isUnderConfigDir(path, configDir)) await adapter.writeBinary(normalizePath(path), buf);
 			else await vault.createBinary(normalizePath(path), buf);
 		},
 

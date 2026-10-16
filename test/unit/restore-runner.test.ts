@@ -63,6 +63,13 @@ describe('config folder protection', () => {
 		expect(allowed.outcome).toBe('written');
 	});
 
+	it('refuses a case-variant config folder target', async () => {
+		const path = '.Obsidian/snippets/evil.css';
+		const { deps, manifest } = await withConfigFile(path);
+		const result = await restoreFile(deps, manifest, path, { kind: 'overwrite' });
+		expect(result.detail).toBe('refused: config folder (enable config restore)');
+	});
+
 	it('always refuses this plugin\'s own state files', async () => {
 		const path = '.obsidian/plugins/r2-vault-sync/data.json';
 		const { deps, manifest } = await withConfigFile(path);

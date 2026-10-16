@@ -1,5 +1,5 @@
 import { sha256Hex } from '../core/crypto';
-import { defaultExcludes, isTextPath, restoredCopyPath } from '../core/paths';
+import { defaultExcludes, isTextPath, isUnderConfigDir, restoredCopyPath, samePath } from '../core/paths';
 import { runPool } from '../core/pool';
 import type { Manifest } from '../core/types';
 import type { RemoteStore, VaultPort } from '../io/types';
@@ -14,9 +14,8 @@ export interface RestoreDeps {
 
 function refusal(deps: RestoreDeps, target: string): string | null {
 	const configDir = deps.vault.configDir;
-	const inConfig = target === configDir || target.startsWith(`${configDir}/`);
-	if (!inConfig) return null;
-	if (defaultExcludes(configDir, PLUGIN_ID).includes(target)) return 'refused: plugin state file';
+	if (!isUnderConfigDir(target, configDir)) return null;
+	if (defaultExcludes(configDir, PLUGIN_ID).some((p) => samePath(p, target))) return 'refused: plugin state file';
 	return deps.allowConfigDir ? null : 'refused: config folder (enable config restore)';
 }
 
