@@ -143,7 +143,7 @@ For a single file you can:
 
 A restore skips any file whose current contents already match the snapshot. Every download is checked against its hash before the plugin writes it. A restore never deletes files.
 
-Restoring into the configuration folder needs an extra confirmation, because that folder can contain plugin code that Obsidian runs the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore the plugin reminds you to reload Obsidian. Workspace files and the plugin's own `data.json`, `index.json`, `log.json`, and `counters.json` are never restored. Paths outside this device's configuration folder that contain a name starting with a dot, such as `.git/hooks/pre-commit` or the configuration folder of a device that uses a different one, are never restored either.
+Restoring into the configuration folder needs an extra confirmation, because that folder can contain plugin code that Obsidian runs the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore the plugin reminds you to reload Obsidian. Workspace files and the plugin's own `data.json`, `index.json`, `log.json`, and `counters.json` are never restored. Paths outside this device's configuration folder that contain a name starting with a dot, such as `.git/hooks/pre-commit` or the configuration folder of a device that uses a different one, are never restored either. Neither is any path with a `~` followed by a digit in a file or folder name, such as `GIT~1/hooks/pre-commit`, because Windows can resolve such a name to a hidden folder. Rename those files before you back them up if you may need to restore them.
 
 ## Encryption
 
