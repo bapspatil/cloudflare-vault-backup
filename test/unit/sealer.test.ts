@@ -10,8 +10,8 @@ describe('plainSealer', () => {
 		const s = plainSealer();
 		expect(s.scheme).toBe('sha256');
 		expect(await s.hash(utf8('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
-		expect(text(await s.seal(utf8('note')))).toBe('note');
-		expect(text(await s.open(utf8('note')))).toBe('note');
+		expect(text(await s.seal(utf8('note'), 'blob:abc'))).toBe('note');
+		expect(text(await s.open(utf8('note'), 'blob:abc'))).toBe('note');
 	});
 });
 
@@ -19,10 +19,17 @@ describe('encryptedSealer', () => {
 	it('round-trips through an envelope that hides the plaintext', async () => {
 		const { keys } = await newEncryptionDescriptor('hunter2', ITER);
 		const s = encryptedSealer(keys);
-		const sealed = await s.seal(utf8('secret note'));
+		const sealed = await s.seal(utf8('secret note'), 'blob:abc');
 		expect(text(sealed).includes('secret note')).toBe(false);
 		expect(sealed.byteLength).toBe('secret note'.length + 33);
-		expect(text(await s.open(sealed))).toBe('secret note');
+		expect(text(await s.open(sealed, 'blob:abc'))).toBe('secret note');
+	});
+
+	it('refuses to open an envelope under a different context', async () => {
+		const { keys } = await newEncryptionDescriptor('hunter2', ITER);
+		const s = encryptedSealer(keys);
+		const sealed = await s.seal(utf8('secret note'), 'blob:abc');
+		await expect(s.open(sealed, 'manifest:20260101T000000Z-aaaa')).rejects.toThrow(/^crypto: authentication failed/);
 	});
 
 	it('hashes with a keyed HMAC that differs from plain SHA-256 and across passphrases', async () => {
@@ -47,10 +54,10 @@ describe('descriptor', () => {
 
 	it('unlocks with the right passphrase and returns null for a wrong one', async () => {
 		const { descriptor, keys } = await newEncryptionDescriptor('correct horse', ITER);
-		const sealed = await encryptedSealer(keys).seal(utf8('payload'));
+		const sealed = await encryptedSealer(keys).seal(utf8('payload'), 'blob:abc');
 		const unlocked = await unlockEncryption('correct horse', descriptor);
 		expect(unlocked === null).toBe(false);
-		expect(text(await encryptedSealer(unlocked as NonNullable<typeof unlocked>).open(sealed))).toBe('payload');
+		expect(text(await encryptedSealer(unlocked as NonNullable<typeof unlocked>).open(sealed, 'blob:abc'))).toBe('payload');
 		expect(await unlockEncryption('wrong horse', descriptor)).toBe(null);
 	});
 });

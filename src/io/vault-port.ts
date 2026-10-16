@@ -1,5 +1,5 @@
 import { Platform, normalizePath, type App } from 'obsidian';
-import { isSafeVaultPath, isUnderConfigDir } from '../core/paths';
+import { isRestoreConfigPath, isSafeVaultPath, isUnderConfigDir } from '../core/paths';
 import type { VaultFileStat, VaultPort } from './types';
 
 function checked(path: string): string {
@@ -72,7 +72,7 @@ export function createObsidianVaultPort(app: App, pluginId: string): VaultPort {
 			const buf = toArrayBuffer(data);
 			const file = vault.getFileByPath(path);
 			if (file) await vault.modifyBinary(file, buf);
-			else if (isUnderConfigDir(path, configDir)) await adapter.writeBinary(normalizePath(path), buf);
+			else if (isRestoreConfigPath(path, configDir)) await adapter.writeBinary(normalizePath(path), buf);
 			else await vault.createBinary(normalizePath(path), buf);
 		},
 

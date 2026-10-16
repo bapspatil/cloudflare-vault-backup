@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-	backupRoot, blobKey, blobsPrefix, defaultExcludes, descriptorKey, hashFromBlobKey, isIncluded,
-	isSafeVaultPath, isTextPath, isUnderConfigDir, lockKey, matchGlob, restoredCopyPath, snapshotIdFromKey, snapshotKey, snapshotsPrefix,
+	backupRoot, blobKey, blobsPrefix, defaultExcludes, descriptorKey, hashFromBlobKey, isBackupPath, isIncluded, isRestoreConfigPath,
+	isSafeVaultPath, isTextPath, isUnderConfigDir, lockKey, matchGlob, restoredCopyPath, sameRestorePath, snapshotIdFromKey, snapshotKey,
+	snapshotsPrefix,
 } from '../../src/core/paths';
 
 describe('key builders', () => {
@@ -188,5 +189,62 @@ describe('isUnderConfigDir', () => {
 		['.obsidian:stream/plugins/x/main.js', '.obsidian', true],
 	])('%s under %s -> %s', (path, dir, expected) => {
 		expect(isUnderConfigDir(path, dir)).toBe(expected);
+	});
+});
+
+describe('isBackupPath', () => {
+	it.each([
+		['Notes/a.md', '.obsidian', true],
+		['a.b/c.md', '.obsidian', true],
+		['.obsidian/plugins/x/main.js', '.obsidian', true],
+		['.Obsidian/snippets/a.css', '.obsidian', true],
+		['.obsidian-mobile/plugins/x/main.js', '.obsidian-mobile', true],
+		['.obsidian-mobile/plugins/x/main.js', '.obsidian', false],
+		['.git/hooks/pre-commit', '.obsidian', false],
+		['.gitignore', '.obsidian', false],
+		['Notes/.hidden/x.md', '.obsidian', false],
+		['Notes/.obsidian/x.md', '.obsidian', false],
+	])('%s with %s -> %s', (path, dir, expected) => {
+		expect(isBackupPath(path, dir)).toBe(expected);
+	});
+});
+
+describe('isRestoreConfigPath', () => {
+	it.each([
+		['.obsidian/plugins/x/main.js', '.obsidian', true],
+		['OBSIDI~1/plugins/x/main.js', '.obsidian', true],
+		['.obs\u200Cidian/plugins/evil/main.js', '.obsidian', true],
+		['\uFEFF.obsidian/community-plugins.json', '.obsidian', true],
+		['.OBS\u200Didian/app.json', '.obsidian', true],
+		['.obsidian\u202E\u206F/app.json', '.obsidian', true],
+		['.obs\u200Cidian', '.obsidian', true],
+		['.my\u200Cconfig/app.json', '.my\u200Cconfig', true],
+		['.myconfig/app.json', '.my\u200Cconfig', true],
+		['.my\u200Dconfig/app.json', '.my\u200Cconfig', true],
+		['.cafe\u200C\u0301/x', '.caf\u00E9', true],
+		['Notes/a.md', '.obsidian', false],
+		['.obs\u200Bidian/app.json', '.obsidian', false],
+		['foo~\u200C1/x.md', '.obsidian', false],
+		['.obsidian\u200C./x', '.obsidian', false],
+		['Notes/.obs\u200Cidian/x', '.obsidian', false],
+		['.obs\u200Cidian-backup/x.md', '.obsidian', false],
+		['Notes/\u{1F469}\u200D\u{1F4BB}.md', '.obsidian', false],
+		['.my\u200Cconfigx/app.json', '.my\u200Cconfig', false],
+		['\uFF0Eobs\u200Cidian/x', '.obsidian', false],
+		['.\uFF4Fbs\u200Cidian/x', '.obsidian', false],
+	])('%j under %j -> %s', (path, dir, expected) => {
+		expect(isRestoreConfigPath(path, dir)).toBe(expected);
+	});
+});
+
+describe('sameRestorePath', () => {
+	it.each([
+		['.obsidian/plugins/r2-vault-sync/data.json', '.Obsidian/plugins/r2-vault-sync/data.json', true],
+		['.obsidian/plugins/r2-vault-sync/data.json', '.obs\u200Cidian/plugins/r2-vault-sync/data.json', true],
+		['.obsidian/plugins/r2-vault-sync/data.json', '.obsidian/plugins/r2-vault-sync/data\uFEFF.json', true],
+		['.obsidian/plugins/r2-vault-sync/data.json', '.obsidian/plugins/r2-vault-sync/data\u200B.json', false],
+		['.obsidian/plugins/r2-vault-sync/data.json', '.obsidian/plugins/r2-vault-sync/main.js', false],
+	])('%j vs %j -> %s', (a, b, expected) => {
+		expect(sameRestorePath(a, b)).toBe(expected);
 	});
 });

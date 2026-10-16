@@ -13,8 +13,11 @@ import {
 	snapshotKey,
 	snapshotsPrefix,
 } from '../core/paths';
-import type { SnapshotId } from '../core/types';
+import type { Hash, SnapshotId } from '../core/types';
 import type { R2Client, RemoteStore, Sealer } from './types';
+
+const manifestContext = (id: SnapshotId): string => `manifest:${id}`;
+const blobContext = (hash: Hash): string => `blob:${hash}`;
 
 export function createRemoteStore(client: R2Client, root: string, sealer: Sealer): RemoteStore {
 	return {
@@ -45,14 +48,14 @@ export function createRemoteStore(client: R2Client, root: string, sealer: Sealer
 		async readManifest(id) {
 			const res = await client.get(snapshotKey(root, id));
 			if (!res.ok) return null;
-			const decoded = decodeManifest(await sealer.open(res.body));
+			const decoded = decodeManifest(await sealer.open(res.body, manifestContext(id)));
 			if (!decoded.ok) throw new Error(`format: manifest ${id} ${decoded.error}`);
 			if (decoded.value.id !== id) throw new Error(`format: manifest ${id} id mismatch`);
 			return decoded.value;
 		},
 
 		async writeManifest(m) {
-			const body = await sealer.seal(encodeManifest(m));
+			const body = await sealer.seal(encodeManifest(m), manifestContext(m.id));
 			const res = await client.put(snapshotKey(root, m.id), body, {
 				contentType: sealer.scheme === 'sha256' ? 'application/json' : 'application/octet-stream',
 				condition: { ifNoneMatch: '*' },
@@ -70,7 +73,7 @@ export function createRemoteStore(client: R2Client, root: string, sealer: Sealer
 		},
 
 		async putBlob(hash, plain) {
-			const sealed = await sealer.seal(plain);
+			const sealed = await sealer.seal(plain, blobContext(hash));
 			await client.put(blobKey(root, hash), sealed, { contentType: 'application/octet-stream' });
 			return sealed.byteLength;
 		},
@@ -78,7 +81,7 @@ export function createRemoteStore(client: R2Client, root: string, sealer: Sealer
 		async getBlob(hash) {
 			const res = await client.get(blobKey(root, hash));
 			if (!res.ok) return null;
-			const plain = await sealer.open(res.body);
+			const plain = await sealer.open(res.body, blobContext(hash));
 			if ((await sealer.hash(plain)) !== hash) throw new Error('format: blob hash mismatch');
 			return plain;
 		},

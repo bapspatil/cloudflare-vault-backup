@@ -22,8 +22,8 @@ export function encryptedSealer(keys: EncryptionKeys): Sealer {
 	return {
 		scheme: 'hmac-sha256',
 		hash: (plain) => hmacSha256Hex(keys.hmac, plain),
-		seal: (plain) => seal(keys.aes, plain),
-		open: (stored) => open(keys.aes, stored),
+		seal: (plain, context) => seal(keys.aes, plain, context),
+		open: (stored, context) => open(keys.aes, stored, context),
 	};
 }
 

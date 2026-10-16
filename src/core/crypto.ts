@@ -1,9 +1,11 @@
 const MAGIC = [0x52, 0x32, 0x56, 0x53];
-const VERSION = 0x01;
+const VERSION = 0x02;
+const LEGACY_VERSION = 0x01;
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 const HEADER_LENGTH = MAGIC.length + 1 + IV_LENGTH;
 const CHECK_PLAINTEXT = 'r2-vault-sync-check';
+const CHECK_CONTEXT = 'check';
 
 export const ENVELOPE_OVERHEAD = HEADER_LENGTH + TAG_LENGTH;
 
@@ -13,6 +15,8 @@ const subtle = () => crypto.subtle;
 
 // TS 5.7+ BufferSource rejects Uint8Array<ArrayBufferLike>; vault data never sits in a SharedArrayBuffer.
 const source = (data: Bytes) => data as BufferSource;
+
+const additionalData = (context: string) => source(new TextEncoder().encode(`r2vs:v2:${context}`));
 
 export function bytesToHex(bytes: Uint8Array): string {
 	let out = '';
@@ -73,9 +77,11 @@ export function isEnvelope(bytes: Uint8Array): boolean {
 	return bytes.length >= ENVELOPE_OVERHEAD && MAGIC.every((b, i) => bytes[i] === b);
 }
 
-export async function seal(aes: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
+export async function seal(aes: CryptoKey, plaintext: Uint8Array, context: string): Promise<Uint8Array> {
 	const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-	const ciphertext = new Uint8Array(await subtle().encrypt({ name: 'AES-GCM', iv }, aes, source(plaintext)));
+	const ciphertext = new Uint8Array(
+		await subtle().encrypt({ name: 'AES-GCM', iv, additionalData: additionalData(context) }, aes, source(plaintext)),
+	);
 	const out = new Uint8Array(HEADER_LENGTH + ciphertext.length);
 	out.set(MAGIC, 0);
 	out[MAGIC.length] = VERSION;
@@ -84,27 +90,28 @@ export async function seal(aes: CryptoKey, plaintext: Uint8Array): Promise<Uint8
 	return out;
 }
 
-export async function open(aes: CryptoKey, envelope: Uint8Array): Promise<Uint8Array> {
+export async function open(aes: CryptoKey, envelope: Uint8Array, context: string): Promise<Uint8Array> {
 	if (envelope.length < ENVELOPE_OVERHEAD) throw new Error('crypto: envelope truncated');
 	if (!MAGIC.every((b, i) => envelope[i] === b)) throw new Error('crypto: bad envelope magic');
-	if (envelope[MAGIC.length] !== VERSION) throw new Error('crypto: unsupported envelope version');
+	const version = envelope[MAGIC.length];
+	if (version !== VERSION && version !== LEGACY_VERSION) throw new Error('crypto: unsupported envelope version');
 	const iv = envelope.slice(MAGIC.length + 1, HEADER_LENGTH);
+	const params: AesGcmParams =
+		version === VERSION ? { name: 'AES-GCM', iv, additionalData: additionalData(context) } : { name: 'AES-GCM', iv };
 	try {
-		return new Uint8Array(
-			await subtle().decrypt({ name: 'AES-GCM', iv }, aes, source(envelope.subarray(HEADER_LENGTH))),
-		);
+		return new Uint8Array(await subtle().decrypt(params, aes, source(envelope.subarray(HEADER_LENGTH))));
 	} catch {
 		throw new Error('crypto: authentication failed (wrong passphrase or corrupted data)');
 	}
 }
 
 export async function makeCheck(aes: CryptoKey): Promise<string> {
-	return bytesToBase64(await seal(aes, new TextEncoder().encode(CHECK_PLAINTEXT)));
+	return bytesToBase64(await seal(aes, new TextEncoder().encode(CHECK_PLAINTEXT), CHECK_CONTEXT));
 }
 
 export async function verifyCheck(aes: CryptoKey, check: string): Promise<boolean> {
 	try {
-		const plain = await open(aes, base64ToBytes(check));
+		const plain = await open(aes, base64ToBytes(check), CHECK_CONTEXT);
 		return new TextDecoder().decode(plain) === CHECK_PLAINTEXT;
 	} catch {
 		return false;
