@@ -10,9 +10,9 @@ import { obsidianTransport } from './io/transport-obsidian';
 import type { LocalState, R2Client, R2Credentials, Sealer, VaultPort } from './io/types';
 import { createObsidianVaultPort } from './io/vault-port';
 import type { BackupContext } from './backup/context';
-import { LEGACY_PLUGIN_ID, PLUGIN_ID, type Settings } from './settings';
+import { PLUGIN_ID, type Settings } from './settings';
 
-const DEVICE_ID_KEY = `${LEGACY_PLUGIN_ID}-device-id`;
+const DEVICE_ID_KEY = `${PLUGIN_ID}-device-id`;
 
 export class SetupError extends Error {
 	constructor(message: string) {

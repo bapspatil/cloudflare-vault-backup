@@ -64,13 +64,17 @@ export default class R2VaultSyncPlugin extends Plugin {
 		this.statusBar = null;
 	}
 
-	// Versions before 1.2.0 used the plugin id r2-vault-sync. Adopting its settings keeps the
-	// vaultId, so this install keeps backing up to the same backup set.
+	// Versions before 1.2.1 used the plugin id r2-vault-sync, which another author's plugin also
+	// uses, so the old folder is adopted only when its manifest names this plugin's author. Adopting
+	// its settings keeps the vaultId, so this install keeps backing up to the same backup set.
 	private async loadLegacyData(): Promise<unknown> {
-		const path = normalizePath(`${this.app.vault.configDir}/plugins/${LEGACY_PLUGIN_ID}/data.json`);
-		if (!(await this.app.vault.adapter.exists(path))) return null;
+		const dir = normalizePath(`${this.app.vault.configDir}/plugins/${LEGACY_PLUGIN_ID}`);
+		const adapter = this.app.vault.adapter;
+		if (!(await adapter.exists(`${dir}/data.json`)) || !(await adapter.exists(`${dir}/manifest.json`))) return null;
 		try {
-			const data: unknown = JSON.parse(await this.app.vault.adapter.read(path));
+			const manifest = JSON.parse(await adapter.read(`${dir}/manifest.json`)) as { author?: unknown };
+			if (manifest.author !== this.manifest.author) return null;
+			const data: unknown = JSON.parse(await adapter.read(`${dir}/data.json`));
 			new Notice('Copied settings from the old install of this plugin. Uninstall the old copy from your community plugins.');
 			return data;
 		} catch {
