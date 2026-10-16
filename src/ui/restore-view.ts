@@ -1,6 +1,6 @@
 import { ButtonComponent, DropdownComponent, ItemView, Notice, SearchComponent, type WorkspaceLeaf } from 'obsidian';
 import { restoreFile, restoreSnapshot, type RestoreDeps, type RestoreMode } from '../backup/restore-runner';
-import { isUnderConfigDir } from '../core/paths';
+import { isRestoreConfigPath } from '../core/paths';
 import { buildTree, type TreeNode } from '../core/tree';
 import type { Manifest, SnapshotId } from '../core/types';
 import { createRemoteStore } from '../io/remote-store';
@@ -253,7 +253,7 @@ export class RestoreView extends ItemView {
 		const s = this.session();
 		const manifest = this.selectedManifest();
 		if (!s || !manifest || this.disabledReason()) return;
-		const config = isUnderConfigDir(path, s.services.vault.configDir);
+		const config = isRestoreConfigPath(path, s.services.vault.configDir);
 		if (!(await confirmFileRestore(this.app, path, mode, config))) return;
 		const result = await this.withBusy(`Restoring ${path}...`, () =>
 			restoreFile(this.deps(s, config), manifest, path, mode),
@@ -272,7 +272,7 @@ export class RestoreView extends ItemView {
 		const manifest = this.selectedManifest();
 		if (!s || !manifest || this.disabledReason()) return;
 		const configDir = s.services.vault.configDir;
-		const hasConfig = Object.keys(manifest.files).some((p) => isUnderConfigDir(p, configDir));
+		const hasConfig = Object.keys(manifest.files).some((p) => isRestoreConfigPath(p, configDir));
 		const mode = await pickSnapshotMode(this.app, manifest, hasConfig);
 		if (!mode) return;
 		if (mode.kind === 'overwrite') {
@@ -293,7 +293,7 @@ export class RestoreView extends ItemView {
 			}),
 		);
 		if (this.els) renderResults(this.els.results, results);
-		const configWritten = results.some((r) => r.outcome === 'written' && isUnderConfigDir(r.target, configDir));
+		const configWritten = results.some((r) => r.outcome === 'written' && isRestoreConfigPath(r.target, configDir));
 		if (configWritten) new Notice(RELOAD_NOTICE, 0);
 	}
 }

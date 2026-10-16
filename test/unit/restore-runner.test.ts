@@ -76,6 +76,80 @@ describe('config folder protection', () => {
 		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, { kind: 'overwrite' });
 		expect(result.detail).toBe('refused: plugin state file');
 	});
+
+	it.each([
+		['.git/hooks/pre-commit', { kind: 'overwrite' }],
+		['.git/config', { kind: 'copy' }],
+		['.obsidian-mobile/plugins/x/main.js', { kind: 'overwrite' }],
+		['Notes/.hidden/x.md', { kind: 'into-folder', folder: `Restored/${ID}` }],
+	] as const)('refuses %s, which a backup never contains', async (path, mode) => {
+		const { deps, manifest, vault } = await withConfigFile(path);
+		const before = [...vault.files.keys()];
+		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, mode);
+		expect(result).toMatchObject({ outcome: 'failed', detail: 'refused: hidden path outside the config folder' });
+		expect([...vault.files.keys()]).toEqual(before);
+	});
+
+	it('overwrites notes in a whole snapshot and refuses its hidden paths', async () => {
+		const { deps, manifest, vault } = await withConfigFile('.git/hooks/pre-commit');
+		const results = await restoreSnapshot(deps, manifest, { kind: 'overwrite' }, () => {});
+		expect(results.map((r) => [r.path, r.outcome])).toEqual([
+			['Notes/a.md', 'written'],
+			['b.md', 'written'],
+			['img/c.png', 'written'],
+			['.git/hooks/pre-commit', 'failed'],
+		]);
+		expect(vault.files.has('.git/hooks/pre-commit')).toBe(false);
+	});
+
+	it('restores files under a custom config folder when allowed', async () => {
+		const ctx = await withConfigFile('.obsidian-mobile/snippets/a.css');
+		const vault = createMemoryVault({ configDir: '.obsidian-mobile' });
+		const deps = { ...ctx.deps, vault };
+		const path = '.obsidian-mobile/snippets/a.css';
+		const refused = await restoreFile(deps, ctx.manifest, path, { kind: 'overwrite' });
+		expect(refused.detail).toBe('refused: config folder (enable config restore)');
+		const allowed = await restoreFile({ ...deps, allowConfigDir: true }, ctx.manifest, path, { kind: 'overwrite' });
+		expect(allowed.outcome).toBe('written');
+		expect(text(vault.files.get(path))).toBe('alert(1)');
+	});
+
+	it.each([
+		'.obs\u200Cidian/plugins/evil/main.js',
+		'\uFEFF.obsidian/community-plugins.json',
+	])('refuses the HFS+ ignorable variant %j unless allowed', async (path) => {
+		const { deps, manifest, vault } = await withConfigFile(path);
+		const result = await restoreFile(deps, manifest, path, { kind: 'overwrite' });
+		expect(result.outcome).toBe('failed');
+		expect(vault.files.has(path)).toBe(false);
+	});
+
+	it('always refuses an HFS+ ignorable variant of this plugin\'s state file', async () => {
+		const path = '.obs\u200Cidian/plugins/r2-vault-sync/data\uFEFF.json';
+		const { deps, manifest, vault } = await withConfigFile(path);
+		const result = await restoreFile({ ...deps, allowConfigDir: true }, manifest, path, { kind: 'overwrite' });
+		expect(result.outcome).toBe('failed');
+		expect(vault.files.has(path)).toBe(false);
+	});
+
+	it.each([
+		'.my\u200Cconfig/plugins/evil/main.js',
+		'.myconfig/plugins/evil/main.js',
+	])('refuses %j when the config folder name holds an HFS+ ignorable', async (path) => {
+		const ctx = await withConfigFile(path);
+		const vault = createMemoryVault({ configDir: '.my\u200Cconfig' });
+		const result = await restoreFile({ ...ctx.deps, vault }, ctx.manifest, path, { kind: 'overwrite' });
+		expect(result.outcome).toBe('failed');
+		expect(vault.files.has(path)).toBe(false);
+	});
+
+	it('still restores a note whose name holds a zero width joiner', async () => {
+		const path = 'Notes/\u{1F469}\u200D\u{1F4BB}.md';
+		const { deps, manifest, vault } = await withConfigFile(path);
+		const result = await restoreFile(deps, manifest, path, { kind: 'overwrite' });
+		expect(result.outcome).toBe('written');
+		expect(text(vault.files.get(path))).toBe('alert(1)');
+	});
 });
 
 describe('restoreFile', () => {

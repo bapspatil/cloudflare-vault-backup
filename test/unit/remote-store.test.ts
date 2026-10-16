@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { encodeManifest } from '../../src/core/manifest';
 import type { Manifest, VaultDescriptor } from '../../src/core/types';
 import { createRemoteStore } from '../../src/io/remote-store';
 import { encryptedSealer, newEncryptionDescriptor, plainSealer } from '../../src/io/sealer';
 import { createFakeR2 } from '../helpers/fake-r2';
+import { legacySeal } from '../helpers/legacy-envelope';
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -75,6 +77,42 @@ describe('manifests', () => {
 		expect(stored.includes('a.md')).toBe(false);
 		expect(await store.readManifest('20260101T000000Z-aaaa')).toEqual(manifest('20260101T000000Z-aaaa'));
 		expect(await store.readManifest('20260102T000000Z-bbbb')).toBe(null);
+	});
+
+	it('refuses an encrypted blob copied over a snapshot key', async () => {
+		const r2 = createFakeR2();
+		const { keys } = await newEncryptionDescriptor('pw', 1000);
+		const sealer = encryptedSealer(keys);
+		const store = createRemoteStore(r2, ROOT, sealer);
+		const forged = encodeManifest(manifest('20991231T000000Z-ffff'));
+		const hash = await sealer.hash(forged);
+		await store.putBlob(hash, forged);
+		const blob = r2.objects.get(`backups/v1/blobs/${hash.slice(0, 2)}/${hash}`)!.body;
+		await r2.put('backups/v1/snapshots/20991231T000000Z-ffff.json', blob);
+		await expect(store.readManifest('20991231T000000Z-ffff')).rejects.toThrow(/^crypto: authentication failed/);
+	});
+
+	it('refuses an encrypted manifest copied to another snapshot id', async () => {
+		const r2 = createFakeR2();
+		const { keys } = await newEncryptionDescriptor('pw', 1000);
+		const store = createRemoteStore(r2, ROOT, encryptedSealer(keys));
+		await store.writeManifest(manifest('20260101T000000Z-aaaa'));
+		const body = r2.objects.get('backups/v1/snapshots/20260101T000000Z-aaaa.json')!.body;
+		await r2.put('backups/v1/snapshots/20260102T000000Z-bbbb.json', body);
+		await expect(store.readManifest('20260102T000000Z-bbbb')).rejects.toThrow(/^crypto: authentication failed/);
+	});
+
+	it('reads a manifest and blob written by the legacy version 1 envelope', async () => {
+		const r2 = createFakeR2();
+		const { keys } = await newEncryptionDescriptor('pw', 1000);
+		const sealer = encryptedSealer(keys);
+		const store = createRemoteStore(r2, ROOT, sealer);
+		const m = manifest('20260101T000000Z-aaaa');
+		await r2.put('backups/v1/snapshots/20260101T000000Z-aaaa.json', await legacySeal(keys.aes, encodeManifest(m)));
+		const hash = await sealer.hash(utf8('abc'));
+		await r2.put(`backups/v1/blobs/${hash.slice(0, 2)}/${hash}`, await legacySeal(keys.aes, utf8('abc')));
+		expect(await store.readManifest('20260101T000000Z-aaaa')).toEqual(m);
+		expect(text((await store.getBlob(hash))!)).toBe('abc');
 	});
 
 	it('throws a format error naming the snapshot for a corrupt manifest', async () => {

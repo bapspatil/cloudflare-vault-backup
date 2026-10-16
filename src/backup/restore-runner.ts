@@ -1,5 +1,5 @@
 import { sha256Hex } from '../core/crypto';
-import { defaultExcludes, isTextPath, isUnderConfigDir, restoredCopyPath, samePath } from '../core/paths';
+import { defaultExcludes, isBackupPath, isRestoreConfigPath, isTextPath, restoredCopyPath, sameRestorePath } from '../core/paths';
 import { runPool } from '../core/pool';
 import type { Manifest } from '../core/types';
 import type { RemoteStore, VaultPort } from '../io/types';
@@ -12,10 +12,11 @@ export interface RestoreDeps {
 	allowConfigDir: boolean;
 }
 
-function refusal(deps: RestoreDeps, target: string): string | null {
+function refusal(deps: RestoreDeps, path: string, target: string): string | null {
 	const configDir = deps.vault.configDir;
-	if (!isUnderConfigDir(target, configDir)) return null;
-	if (defaultExcludes(configDir, PLUGIN_ID).some((p) => samePath(p, target))) return 'refused: plugin state file';
+	if (!isBackupPath(path, configDir)) return 'refused: hidden path outside the config folder';
+	if (!isRestoreConfigPath(target, configDir)) return null;
+	if (defaultExcludes(configDir, PLUGIN_ID).some((p) => sameRestorePath(p, target))) return 'refused: plugin state file';
 	return deps.allowConfigDir ? null : 'refused: config folder (enable config restore)';
 }
 
@@ -50,7 +51,7 @@ export async function restoreFile(
 ): Promise<RestoreFileResult> {
 	const target = targetPath(deps, manifest, path, mode);
 	try {
-		const refused = refusal(deps, target);
+		const refused = refusal(deps, path, target);
 		if (refused) return { path, outcome: 'failed', target, detail: refused };
 		const entry = manifest.files[path];
 		if (!entry) return { path, outcome: 'failed', target, detail: 'not in snapshot' };

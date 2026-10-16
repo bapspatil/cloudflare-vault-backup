@@ -12,6 +12,7 @@ import {
 	sha256Hex,
 	verifyCheck,
 } from '../../src/core/crypto';
+import { legacySeal } from '../helpers/legacy-envelope';
 
 const utf8 = (s: string) => new TextEncoder().encode(s);
 const salt = utf8('0123456789abcdef');
@@ -50,38 +51,57 @@ describe('envelope', () => {
 	it('round-trips through seal and open with the expected layout', async () => {
 		const { aes } = await deriveKeys('correct horse', salt, 1000);
 		const plain = utf8('secret note');
-		const env = await seal(aes, plain);
-		expect(Array.from(env.subarray(0, 5))).toEqual([0x52, 0x32, 0x56, 0x53, 0x01]);
+		const env = await seal(aes, plain, 'blob:abc');
+		expect(Array.from(env.subarray(0, 5))).toEqual([0x52, 0x32, 0x56, 0x53, 0x02]);
 		expect(env.length).toBe(plain.length + 33);
 		expect(ENVELOPE_OVERHEAD).toBe(33);
 		expect(isEnvelope(env)).toBe(true);
 		expect(isEnvelope(plain)).toBe(false);
-		expect(new TextDecoder().decode(await open(aes, env))).toBe('secret note');
+		expect(new TextDecoder().decode(await open(aes, env, 'blob:abc'))).toBe('secret note');
 	});
 
 	it('rejects a flipped ciphertext byte', async () => {
 		const { aes } = await deriveKeys('correct horse', salt, 1000);
-		const env = await seal(aes, utf8('secret note'));
+		const env = await seal(aes, utf8('secret note'), 'blob:abc');
 		env[20] = (env[20] as number) ^ 0x01;
-		await expect(open(aes, env)).rejects.toThrow(/^crypto:/);
+		await expect(open(aes, env, 'blob:abc')).rejects.toThrow(/^crypto:/);
 	});
 
 	it('rejects wrong magic, wrong version and truncated input', async () => {
 		const { aes } = await deriveKeys('correct horse', salt, 1000);
-		const env = await seal(aes, utf8('x'));
+		const env = await seal(aes, utf8('x'), 'blob:abc');
 		const badMagic = env.slice();
 		badMagic[0] = 0x58;
-		await expect(open(aes, badMagic)).rejects.toThrow(/^crypto: bad envelope magic/);
+		await expect(open(aes, badMagic, 'blob:abc')).rejects.toThrow(/^crypto: bad envelope magic/);
 		const badVersion = env.slice();
-		badVersion[4] = 0x02;
-		await expect(open(aes, badVersion)).rejects.toThrow(/^crypto: unsupported envelope version/);
-		await expect(open(aes, env.slice(0, 20))).rejects.toThrow(/^crypto: envelope truncated/);
+		badVersion[4] = 0x03;
+		await expect(open(aes, badVersion, 'blob:abc')).rejects.toThrow(/^crypto: unsupported envelope version/);
+		await expect(open(aes, env.slice(0, 20), 'blob:abc')).rejects.toThrow(/^crypto: envelope truncated/);
 	});
 
 	it('rejects a different passphrase', async () => {
 		const a = await deriveKeys('correct horse', salt, 1000);
 		const b = await deriveKeys('wrong horse', salt, 1000);
-		await expect(open(b.aes, await seal(a.aes, utf8('x')))).rejects.toThrow(/^crypto: authentication failed/);
+		await expect(open(b.aes, await seal(a.aes, utf8('x'), 'blob:abc'), 'blob:abc')).rejects.toThrow(
+			/^crypto: authentication failed/,
+		);
+	});
+
+	it('binds the envelope to the context it was sealed for', async () => {
+		const { aes } = await deriveKeys('correct horse', salt, 1000);
+		const env = await seal(aes, utf8('note'), 'blob:abc');
+		expect(new TextDecoder().decode(await open(aes, env, 'blob:abc'))).toBe('note');
+		await expect(open(aes, env, 'manifest:20260101T000000Z-aaaa')).rejects.toThrow(/^crypto: authentication failed/);
+		await expect(open(aes, env, 'blob:abd')).rejects.toThrow(/^crypto: authentication failed/);
+	});
+
+	it('opens a legacy version 1 envelope and refuses a version 2 envelope relabeled as version 1', async () => {
+		const { aes } = await deriveKeys('correct horse', salt, 1000);
+		const legacy = await legacySeal(aes, utf8('old note'));
+		expect(new TextDecoder().decode(await open(aes, legacy, 'blob:abc'))).toBe('old note');
+		const env = await seal(aes, utf8('note'), 'blob:abc');
+		env[4] = 0x01;
+		await expect(open(aes, env, 'blob:abc')).rejects.toThrow(/^crypto: authentication failed/);
 	});
 });
 
@@ -105,5 +125,15 @@ describe('passphrase check', () => {
 		expect(await verifyCheck(right.aes, check)).toBe(true);
 		expect(await verifyCheck(wrong.aes, check)).toBe(false);
 		expect(await verifyCheck(right.aes, 'not base64!')).toBe(false);
+	});
+
+	it('verifies a check written by the legacy version 1 envelope', async () => {
+		const { aes } = await deriveKeys('pw', salt, 1000);
+		expect(await verifyCheck(aes, bytesToBase64(await legacySeal(aes, utf8('r2-vault-sync-check'))))).toBe(true);
+	});
+
+	it('does not accept a blob envelope as a check', async () => {
+		const { aes } = await deriveKeys('pw', salt, 1000);
+		expect(await verifyCheck(aes, bytesToBase64(await seal(aes, utf8('r2-vault-sync-check'), 'blob:abc')))).toBe(false);
 	});
 });

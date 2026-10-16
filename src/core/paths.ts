@@ -125,8 +125,31 @@ export function isUnderConfigDir(path: string, configDir: string): boolean {
 	return dir.every((d, i) => segs[i] === d || SHORT_NAME.test(segs[i] ?? ''));
 }
 
+// A scan reads the config folder and the files Obsidian indexes, and Obsidian skips every dot name.
+export function isBackupPath(path: string, configDir: string): boolean {
+	return isUnderConfigDir(path, configDir) || !path.split('/').some((seg) => seg.startsWith('.'));
+}
+
 export function samePath(a: string, b: string): boolean {
 	return fold(a).join('/') === fold(b).join('/');
+}
+
+// HFS+ drops these code points (git's core.protectHFS list) and compares names case-insensitively
+// up to canonical, not compatibility, equivalence, so restore also gates a path that matches a
+// config path under that rule.
+const HFS_IGNORABLE = /[\u200C-\u200F\u202A-\u202E\u206A-\u206F\uFEFF]/g;
+const foldHfs = (path: string): string[] =>
+	path.split('/').map((seg) => seg.replace(HFS_IGNORABLE, '').normalize('NFC').toLowerCase());
+
+export function isRestoreConfigPath(path: string, configDir: string): boolean {
+	if (isUnderConfigDir(path, configDir)) return true;
+	const dir = foldHfs(configDir);
+	const segs = foldHfs(path);
+	return segs.length >= dir.length && dir.every((d, i) => segs[i] === d);
+}
+
+export function sameRestorePath(a: string, b: string): boolean {
+	return samePath(a, b) || foldHfs(a).join('/') === foldHfs(b).join('/');
 }
 
 export function isTextPath(path: string): boolean {

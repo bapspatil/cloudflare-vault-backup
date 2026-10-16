@@ -59,8 +59,8 @@ export class R2Error extends Error {
 export interface Sealer {
 	scheme: 'sha256' | 'hmac-sha256';
 	hash(plain: Uint8Array): Promise<Hash>;
-	seal(plain: Uint8Array): Promise<Uint8Array>;
-	open(stored: Uint8Array): Promise<Uint8Array>;
+	seal(plain: Uint8Array, context: string): Promise<Uint8Array>;
+	open(stored: Uint8Array, context: string): Promise<Uint8Array>;
 }
 
 export interface RemoteStore {
