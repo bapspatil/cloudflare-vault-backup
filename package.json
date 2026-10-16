@@ -1,6 +1,6 @@
 {
 	"name": "r2-vault-sync",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"description": "Obsidian plugin that backs up a vault to your own Cloudflare R2 bucket with versioned snapshots, per-note restore and optional encryption",
 	"author": {
 		"name": "Bapusaheb Patil",
