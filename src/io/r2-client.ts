@@ -111,7 +111,8 @@ export function createR2Client(creds: R2Credentials, transport: Transport, opts:
 		const signer = new AwsV4Signer({
 			method: op.method,
 			url: buildUrl(op),
-			headers: { ...op.headers, 'x-amz-content-sha256': 'UNSIGNED-PAYLOAD' },
+			// Lock and manifest reads must see the latest write; Obsidian's request layer otherwise serves cached GETs.
+			headers: { ...op.headers, 'cache-control': 'no-cache', 'x-amz-content-sha256': 'UNSIGNED-PAYLOAD' },
 			accessKeyId: creds.accessKeyId,
 			secretAccessKey: creds.secretAccessKey,
 			service: 's3',

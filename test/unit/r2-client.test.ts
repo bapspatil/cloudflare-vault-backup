@@ -48,6 +48,17 @@ describe('createR2Client', () => {
 		expect(Object.keys(req.headers).every((k) => k === k.toLowerCase())).toBe(true);
 	});
 
+	it('marks every request uncacheable so reads see the latest write', async () => {
+		const t = fake(() => ({ status: 200, body: listXml([], null) }));
+		const c = client(t);
+		await c.get('lock.json');
+		await c.head('lock.json');
+		await c.put('lock.json', '{}');
+		await c.list('p/');
+		expect(t.requests.map((r) => r.headers['cache-control'])).toEqual(['no-cache', 'no-cache', 'no-cache', 'no-cache']);
+		expect(t.requests[0]!.headers['authorization']).toContain('cache-control');
+	});
+
 	it('percent-encodes each key segment and keeps slashes', async () => {
 		const t = fake([{ status: 200 }]);
 		await client(t).get('notes/my file (1)/café.md');
