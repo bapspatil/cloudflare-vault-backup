@@ -9,19 +9,18 @@ export interface LockKeeper {
 export function keepLock(handle: LockHandle, intervalMs: number): LockKeeper {
 	let lost = false;
 	let inFlight: Promise<void> | null = null;
+	const refresh = async () => {
+		try {
+			if (!(await handle.refresh())) lost = true;
+		} catch {
+			lost = true;
+		} finally {
+			inFlight = null;
+		}
+	};
 	const timer = window.setInterval(() => {
 		if (lost || inFlight) return;
-		inFlight = handle.refresh().then(
-			(ok) => {
-				if (!ok) lost = true;
-			},
-			() => {
-				lost = true;
-			},
-		);
-		void inFlight.finally(() => {
-			inFlight = null;
-		});
+		inFlight = refresh();
 	}, intervalMs);
 	return {
 		lost: () => lost,

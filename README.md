@@ -4,6 +4,13 @@ R2 Vault Sync backs up your Obsidian vault to your own Cloudflare R2 bucket as v
 
 Your local vault is always the source of truth. The plugin never changes local files during a backup, so deletions cannot come back from the bucket and two devices cannot overwrite each other's edits.
 
+## Before you install
+
+- **Account required.** You need a Cloudflare account with R2 enabled. The plugin stores your backups in an R2 bucket that you own.
+- **Payment may be required.** The plugin is free. Cloudflare bills R2 storage and requests beyond its monthly free tier, and it may ask for a payment method before it turns on R2. See [Retention and cost](#retention-and-cost).
+- **Network use.** The plugin connects only to your bucket's R2 endpoint, to upload, list, download, and delete backup data. It has no telemetry. See [Network use and privacy](#network-use-and-privacy).
+- **Files outside the vault.** The plugin never reads or writes files outside your vault.
+
 ## How it works
 
 Each backup creates a snapshot. A snapshot is one JSON manifest that maps every file path to a SHA-256 hash, a size, and a modification time. File contents live in separate blobs named by their hash.
