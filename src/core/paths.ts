@@ -106,19 +106,22 @@ export function isSafeVaultPath(path: string): boolean {
 	return path.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
 }
 
-// NFKC folds compatibility look-alikes (Kelvin sign, ligatures) so the gate errs towards "inside".
-const fold = (s: string): string => s.normalize('NFKC').toLowerCase();
+// NFKC folds compatibility look-alikes (Kelvin sign, ligatures), and Windows ignores trailing
+// dots and spaces and treats ':' as a stream separator, so the gate folds all of those too.
+const foldSegment = (seg: string): string =>
+	seg.normalize('NFKC').toLowerCase().replace(/:.*$/, '').replace(/[. ]+$/, '');
+const fold = (path: string): string[] => path.split('/').map(foldSegment);
 const SHORT_NAME = /~\d/;
 
 export function isUnderConfigDir(path: string, configDir: string): boolean {
-	const dir = fold(configDir).split('/');
-	const segs = fold(path).split('/');
+	const dir = fold(configDir);
+	const segs = fold(path);
 	if (segs.length < dir.length) return false;
 	return dir.every((d, i) => segs[i] === d || SHORT_NAME.test(segs[i] ?? ''));
 }
 
 export function samePath(a: string, b: string): boolean {
-	return fold(a) === fold(b);
+	return fold(a).join('/') === fold(b).join('/');
 }
 
 export function isTextPath(path: string): boolean {
