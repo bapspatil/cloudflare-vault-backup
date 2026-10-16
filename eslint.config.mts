@@ -6,6 +6,7 @@ export default defineConfig(
 	globalIgnores([
 		'node_modules',
 		'.claude',
+		'scripts',
 		'graft',
 		'dist',
 		'esbuild.config.mjs',

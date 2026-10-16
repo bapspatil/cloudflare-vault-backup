@@ -1,3 +1,4 @@
+import { PLUGIN_STATE_FILES } from '../core/paths';
 import { INDEX_FORMAT } from '../core/types';
 import type { OpCounters, RunLogEntry } from '../core/types';
 import { decodeLocalIndex, encodeLocalIndex } from '../core/manifest';
@@ -33,13 +34,13 @@ function isLogEntry(v: unknown): v is RunLogEntry {
 
 export function createLocalState(port: Pick<VaultPort, 'readPluginFile' | 'writePluginFile'>): LocalState {
 	async function loadLog(): Promise<RunLogEntry[]> {
-		const v = parseJson(await port.readPluginFile('log.json'));
+		const v = parseJson(await port.readPluginFile(PLUGIN_STATE_FILES.log));
 		return Array.isArray(v) ? v.filter(isLogEntry) : [];
 	}
 
 	return {
 		async loadIndex(vaultId) {
-			const bytes = await port.readPluginFile('index.json');
+			const bytes = await port.readPluginFile(PLUGIN_STATE_FILES.index);
 			if (bytes) {
 				const d = decodeLocalIndex(bytes);
 				if (d.ok && d.value.vaultId === vaultId) return d.value;
@@ -47,20 +48,20 @@ export function createLocalState(port: Pick<VaultPort, 'readPluginFile' | 'write
 			return { format: INDEX_FORMAT, vaultId, lastSnapshotId: null, lastGcAt: null, files: {}, pendingBlobs: {} };
 		},
 
-		saveIndex: (index) => port.writePluginFile('index.json', encodeLocalIndex(index)),
+		saveIndex: (index) => port.writePluginFile(PLUGIN_STATE_FILES.index, encodeLocalIndex(index)),
 
 		loadLog,
 
 		async appendLog(entry) {
 			const next = [entry, ...(await loadLog())].slice(0, LOG_LIMIT);
-			await port.writePluginFile('log.json', enc.encode(JSON.stringify(next)));
+			await port.writePluginFile(PLUGIN_STATE_FILES.log, enc.encode(JSON.stringify(next)));
 		},
 
 		async loadCounters() {
-			const v = parseJson(await port.readPluginFile('counters.json'));
+			const v = parseJson(await port.readPluginFile(PLUGIN_STATE_FILES.counters));
 			return isCounters(v) ? v : null;
 		},
 
-		saveCounters: (c) => port.writePluginFile('counters.json', enc.encode(JSON.stringify(c))),
+		saveCounters: (c) => port.writePluginFile(PLUGIN_STATE_FILES.counters, enc.encode(JSON.stringify(c))),
 	};
 }

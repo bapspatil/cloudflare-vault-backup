@@ -3,6 +3,8 @@ import { INDEX_FORMAT } from '../../src/core/types';
 import type { LocalIndex, OpCounters, RunLogEntry } from '../../src/core/types';
 import { createLocalState } from '../../src/io/local-state';
 import { createMemoryVault } from '../helpers/memory-vault';
+import { isIncluded } from '../../src/core/paths';
+import { PLUGIN_ID } from '../../src/settings';
 
 const enc = new TextEncoder();
 
@@ -90,5 +92,22 @@ describe('local state log and counters', () => {
 		expect(await state.loadCounters()).toEqual(c);
 		vault.pluginFiles.set('counters.json', enc.encode('{"month":1}'));
 		expect(await state.loadCounters()).toBeNull();
+	});
+});
+
+describe('plugin state never reaches a backup', () => {
+	it('excludes every file local state writes', async () => {
+		const { vault, state } = setup();
+		await state.saveIndex(await state.loadIndex('v1'));
+		await state.appendLog(entry(1));
+		await state.saveCounters({ month: '2026-10', classA: 1, classB: 1, bytesUploaded: 1, bytesDownloaded: 1 });
+		const written = [...vault.pluginFiles.keys()].map((name) => `.obsidian/plugins/${PLUGIN_ID}/${name}`);
+		expect(written.sort()).toEqual([
+			'.obsidian/plugins/r2-vault-sync/counters.json',
+			'.obsidian/plugins/r2-vault-sync/index.json',
+			'.obsidian/plugins/r2-vault-sync/log.json',
+		]);
+		const opts = { configDir: '.obsidian', includeConfigDir: true, excludeGlobs: [], pluginId: PLUGIN_ID };
+		expect(written.filter((p) => isIncluded(p, opts))).toEqual([]);
 	});
 });

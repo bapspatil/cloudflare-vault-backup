@@ -73,13 +73,18 @@ export function matchGlob(pattern: string, path: string): boolean {
 	return re.test(path.slice(path.lastIndexOf('/') + 1));
 }
 
+export const PLUGIN_STATE_FILES = {
+	settings: 'data.json',
+	index: 'index.json',
+	log: 'log.json',
+	counters: 'counters.json',
+} as const;
+
 export function defaultExcludes(configDir: string, pluginId: string): string[] {
 	return [
 		`${configDir}/workspace.json`,
 		`${configDir}/workspace-mobile.json`,
-		`${configDir}/plugins/${pluginId}/data.json`,
-		`${configDir}/plugins/${pluginId}/index.json`,
-		`${configDir}/plugins/${pluginId}/log.json`,
+		...Object.values(PLUGIN_STATE_FILES).map((name) => `${configDir}/plugins/${pluginId}/${name}`),
 	];
 }
 

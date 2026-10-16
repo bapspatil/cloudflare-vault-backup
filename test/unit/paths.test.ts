@@ -83,6 +83,7 @@ describe('defaultExcludes', () => {
 			'.obsidian/plugins/r2-vault-sync/data.json',
 			'.obsidian/plugins/r2-vault-sync/index.json',
 			'.obsidian/plugins/r2-vault-sync/log.json',
+			'.obsidian/plugins/r2-vault-sync/counters.json',
 		]],
 		['cfg', [
 			'cfg/workspace.json',
@@ -90,6 +91,7 @@ describe('defaultExcludes', () => {
 			'cfg/plugins/r2-vault-sync/data.json',
 			'cfg/plugins/r2-vault-sync/index.json',
 			'cfg/plugins/r2-vault-sync/log.json',
+			'cfg/plugins/r2-vault-sync/counters.json',
 		]],
 	])('configDir %j', (dir, expected) => {
 		expect(defaultExcludes(dir, 'r2-vault-sync')).toEqual(expected);
