@@ -195,6 +195,10 @@ Then run `bun run test:int`. The `.env` file is ignored by git.
 
 To test the plugin in a vault, copy `main.js`, `manifest.json`, and `styles.css` to `<Vault>/.obsidian/plugins/r2-vault-sync/`. Reload Obsidian and enable the plugin in **Settings → Community plugins**.
 
+## Author
+
+R2 Vault Sync is made by [Bapusaheb Patil](https://bapspatil.com). Report bugs and request features on [GitHub issues](https://github.com/bapspatil/r2-vault-sync/issues).
+
 ## License
 
 R2 Vault Sync is released under the 0BSD license. See [LICENSE](LICENSE).

@@ -1,10 +1,10 @@
 {
 	"id": "r2-vault-sync",
 	"name": "R2 Vault Sync",
-	"version": "0.1.0",
+	"version": "1.0.0",
 	"minAppVersion": "1.11.4",
 	"description": "Back up your vault to your own Cloudflare R2 bucket with versioned snapshots, per-note restore and optional encryption.",
 	"author": "Bapusaheb Patil",
-	"authorUrl": "https://github.com/bapspatil",
+	"authorUrl": "https://bapspatil.com",
 	"isDesktopOnly": false
 }
