@@ -25,7 +25,7 @@ The bucket layout under your prefix looks like this:
 - `snapId` looks like `20261016T162233Z-3fa9`. Snapshot ids sort in time order.
 - Vault paths never appear in object keys. Paths appear only inside manifests.
 
-A backup holds `lock.json` for the whole run. The plugin creates the lock with a conditional write, refreshes it every 60 seconds, and treats it as expired 10 minutes after the last refresh. If another device holds a live lock, the backup fails with a "locked" error and the next scheduled run tries again. The lock stops one device's cleanup from deleting a blob that another device is about to reference.
+A backup holds `lock.json` for the whole run. The plugin creates the lock with a conditional write, refreshes it every 60 seconds, and treats it as expired 10 minutes after the last refresh. If another device holds a live lock, the backup fails with a "locked" error and the next scheduled run tries again. A lock left behind by this device, for example when Obsidian quit mid-backup, is taken over on the next run. The lock stops one device's cleanup from deleting a blob that another device is about to reference.
 
 Retention decides which snapshots to keep. Pruning deletes the manifests of the other snapshots, then deletes blobs that no kept manifest references. A blob is deleted only if it is older than the grace period (24 hours by default). The grace period protects blobs that a backup in progress has uploaded but not yet committed. Pruning runs after a backup at most once per garbage collection interval (24 hours by default), or when you run **Prune old snapshots now**.
 
@@ -83,7 +83,7 @@ Scheduled backups run every hour by default. **Backup interval** offers off, 15 
 By default a backup includes every note and attachment in the vault and the configuration folder (`.obsidian` unless you changed it). The configuration folder holds your plugins, themes, and snippets. These files are always skipped:
 
 - `workspace.json` and `workspace-mobile.json` in the configuration folder.
-- This plugin's own `data.json`, `index.json`, and `log.json`.
+- This plugin's own `data.json`, `index.json`, `log.json`, and `counters.json`.
 
 Folders that start with a dot, such as `.trash` and `.git`, are not scanned. Turn off **Include configuration folder** to skip the configuration folder entirely.
 
@@ -95,17 +95,22 @@ On desktop, the status bar shows the current state of a backup. On every platfor
 
 ## Restoring
 
-Run **Open restore browser** to open the restore panel in the right sidebar. The panel lists snapshots and the files in each one.
+Run **Open restore browser** to open the restore panel in the right sidebar. Pick a snapshot from the list, then browse its folders or filter by name.
 
 For a single file you can:
 
-- **Diff** a text file against the current version in your vault. Diffs work for text files up to 1 MB, such as `.md`, `.canvas`, `.json`, and `.css`.
+- **Diff** a text file against the current version in your vault. Lines marked `-` are in the vault now, and lines marked `+` come from the snapshot. Diffs work for text files up to 1 MB, such as `.md`, `.canvas`, `.json`, and `.css`.
 - **Restore as copy**, which writes the snapshot version next to the original. `Notes/a.md` becomes `Notes/a (restored 2026-10-16).md`.
-- **Restore and overwrite**, which replaces the file in your vault after you confirm.
+- **Overwrite**, which replaces the file in your vault after you confirm.
 
-You can also restore a whole snapshot, either into a folder or in place over your vault. A restore skips any file whose current contents already match the snapshot. Every download is checked against its hash before the plugin writes it.
+**Restore whole snapshot** offers two choices:
 
-Restores into the configuration folder are refused unless you opt in for that restore. The plugin's own `data.json`, `index.json`, and `log.json` are never restored. The reason is that a restored configuration folder can contain plugin code, and Obsidian runs that code the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore, reload Obsidian so the restored settings take effect.
+- **Restore into `Restored/<snapId>`** writes every file of the snapshot under that folder and leaves your vault untouched.
+- **Overwrite in place** replaces vault files with their snapshot versions. You type `restore` to confirm, and the plugin takes a backup first so you can undo it.
+
+A restore skips any file whose current contents already match the snapshot. Every download is checked against its hash before the plugin writes it. A restore never deletes files.
+
+Restoring into the configuration folder needs an extra confirmation, because that folder can contain plugin code that Obsidian runs the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore the plugin reminds you to reload Obsidian. Workspace files and the plugin's own `data.json`, `index.json`, `log.json`, and `counters.json` are never restored.
 
 ## Encryption
 
@@ -115,7 +120,7 @@ The plugin derives keys from the passphrase with PBKDF2-SHA256 at 600,000 iterat
 
 If you lose the passphrase, nobody can read the backup. Cloudflare cannot recover it, and neither can the plugin. Keep a copy of the passphrase outside the vault.
 
-The first backup records whether a backup set is encrypted. Switching encryption on or off for an existing backup set fails with an error. To switch, change the prefix so the plugin starts a new backup set. The next backup then uploads every file again.
+The first backup records whether a backup set is encrypted. Switching encryption on or off for an existing backup set fails with an error. To switch, change the prefix so the plugin starts a new backup set. The next backup then uploads every file to the new set.
 
 Encrypted blobs and manifests are unreadable in the R2 dashboard. You can restore them only through the plugin.
 
