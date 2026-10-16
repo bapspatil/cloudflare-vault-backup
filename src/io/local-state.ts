@@ -39,13 +39,13 @@ export function createLocalState(port: Pick<VaultPort, 'readPluginFile' | 'write
 	}
 
 	return {
-		async loadIndex(vaultId) {
+		async loadIndex(backupSet) {
 			const bytes = await port.readPluginFile(PLUGIN_STATE_FILES.index);
 			if (bytes) {
 				const d = decodeLocalIndex(bytes);
-				if (d.ok && d.value.vaultId === vaultId) return d.value;
+				if (d.ok && d.value.backupSet === backupSet) return d.value;
 			}
-			return { format: INDEX_FORMAT, vaultId, lastSnapshotId: null, lastGcAt: null, files: {}, pendingBlobs: {} };
+			return { format: INDEX_FORMAT, backupSet, lastSnapshotId: null, lastGcAt: null, files: {}, pendingBlobs: {} };
 		},
 
 		saveIndex: (index) => port.writePluginFile(PLUGIN_STATE_FILES.index, encodeLocalIndex(index)),

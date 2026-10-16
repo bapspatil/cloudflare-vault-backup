@@ -1,9 +1,10 @@
 import { chunk, selectGarbage } from '../core/gc';
 import { parseSnapshotId } from '../core/manifest';
-import { hashFromBlobKey } from '../core/paths';
+import { hashFromBlobKey, lockKey } from '../core/paths';
 import { selectKeep } from '../core/retention';
 import type { Hash, SnapshotRef } from '../core/types';
-import type { BackupContext } from './context';
+import { backupSetOf, type BackupContext } from './context';
+import { lockOptions, withLock } from './lock-keeper';
 
 const HOUR_MS = 3_600_000;
 const DELETE_BATCH = 1000;
@@ -42,4 +43,22 @@ export async function runPrune(
 		onProgress(doomed.length + blobsDeleted);
 	}
 	return { manifestsDeleted: doomed.length, blobsDeleted };
+}
+
+export type LockedPruneResult = { kind: 'locked' } | { kind: 'done'; manifestsDeleted: number; blobsDeleted: number };
+
+export async function runLockedPrune(ctx: BackupContext, onProgress: (deleted: number) => void): Promise<LockedPruneResult> {
+	const run = await withLock(ctx.client, lockKey(ctx.store.root), lockOptions(ctx), async (held) => {
+		const check = () => {
+			if (held.lost()) throw new Error('lost the backup lock during the prune');
+		};
+		const result = await runPrune(ctx, (deleted) => {
+			check();
+			onProgress(deleted);
+		});
+		const index = await ctx.local.loadIndex(backupSetOf(ctx));
+		await ctx.local.saveIndex({ ...index, lastGcAt: ctx.now() });
+		return result;
+	});
+	return run.held ? { kind: 'done', ...run.value } : { kind: 'locked' };
 }

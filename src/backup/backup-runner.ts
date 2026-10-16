@@ -1,7 +1,7 @@
 import { randomHex } from '../core/crypto';
 import { manifestTotals, newSnapshotId } from '../core/manifest';
 import { isIncluded, lockKey } from '../core/paths';
-import { hasChanges, knownHashes, planScan, type Plan, type ScanEntry } from '../core/planner';
+import { hasChanges, knownHashes, planScan, requireKnown, type Plan, type ScanEntry } from '../core/planner';
 import { runPool } from '../core/pool';
 import { classifyHttp, transition } from '../core/run-machine';
 import {
@@ -17,15 +17,12 @@ import {
 	type RunStats,
 	type SkippedFile,
 } from '../core/types';
-import { acquireLock } from '../io/lock';
-import { R2Error, type LockHandle } from '../io/types';
+import { R2Error } from '../io/types';
 import { PLUGIN_ID } from '../settings';
-import type { BackupContext } from './context';
-import { keepLock, type LockKeeper } from './lock-keeper';
+import { backupSetOf, type BackupContext } from './context';
+import { lockOptions, withLock, type LockKeeper } from './lock-keeper';
 import { runPrune } from './prune-runner';
 
-const LOCK_TTL_MS = 10 * 60_000;
-const LOCK_REFRESH_MS = 60_000;
 const INDEX_FLUSH_EVERY = 25;
 const HOUR_MS = 3_600_000;
 const MB = 1024 * 1024;
@@ -53,57 +50,60 @@ export async function runBackup(ctx: BackupContext, trigger: RunLogEntry['trigge
 		state = transition(state, next);
 		ctx.onState(state);
 	};
-	let lock: LockHandle | null = null;
-	let keeper: LockKeeper | null = null;
 	try {
 		const { s, index, plan, scanned } = await scan(ctx, go);
 		if (!hasChanges(plan, index.files) && index.lastSnapshotId !== null) {
 			go({ kind: 'done', snapshotId: null, stats: stats(ctx, startedAt, scanned, plan.skipped.length) });
 		} else {
 			go({ kind: 'locking' });
-			lock = await acquireLock(ctx.client, lockKey(ctx.store.root), {
-				deviceId: ctx.deviceId,
-				ttlMs: LOCK_TTL_MS,
-				now: ctx.now,
-			});
-			if (!lock) throw new RunFailure({ code: 'locked', detail: 'another device holds the backup lock' });
-			const held = keepLock(lock, LOCK_REFRESH_MS);
-			keeper = held;
-			await ensureDescriptor(ctx);
-			const graceMs = s.retention.graceHours * HOUR_MS;
-			const known = await learnKnown(ctx, index, graceMs / 2);
-			const up = await upload(ctx, go, plan, index, known, held);
-			assertHeld(held);
-			go({ kind: 'committing' });
-			const manifest = buildManifest(ctx, plan, up);
-			await ctx.store.writeManifest(manifest);
-			let next: LocalIndex = { ...index, files: manifest.files, lastSnapshotId: manifest.id, pendingBlobs: {} };
-			await ctx.local.saveIndex(next);
-			const lastGcAt = index.lastGcAt;
-			if (lastGcAt === null || ctx.now() - lastGcAt >= s.retention.gcIntervalHours * HOUR_MS) {
-				assertHeld(held);
-				go({ kind: 'pruning', deleted: 0 });
-				await runPrune(ctx, (deleted) => {
-					assertHeld(held);
-					go({ kind: 'pruning', deleted });
-				});
-				next = { ...next, lastGcAt: ctx.now() };
-				await ctx.local.saveIndex(next);
-			}
-			go({
-				kind: 'done',
-				snapshotId: manifest.id,
-				stats: { ...stats(ctx, startedAt, scanned, manifest.skipped.length), ...counts(up) },
-			});
+			const run = await withLock(ctx.client, lockKey(ctx.store.root), lockOptions(ctx), (held) =>
+				commitRun(ctx, go, s, index, plan, scanned, startedAt, held),
+			);
+			if (!run.held) throw new RunFailure({ code: 'locked', detail: 'another device holds the backup lock' });
 		}
 	} catch (e) {
 		go({ kind: 'failed', phase: state.kind, error: toBackupError(e) });
-	} finally {
-		if (keeper) await keeper.stop();
-		if (lock) await lock.release().catch(() => undefined);
 	}
 	await record(ctx, trigger, startedAt, state);
 	return state;
+}
+
+async function commitRun(
+	ctx: BackupContext,
+	go: Go,
+	s: BackupContext['settings'],
+	index: LocalIndex,
+	plan: Plan,
+	scanned: number,
+	startedAt: number,
+	held: LockKeeper,
+): Promise<void> {
+	await ensureDescriptor(ctx);
+	const graceMs = s.retention.graceHours * HOUR_MS;
+	const known = await learnKnown(ctx, index, graceMs / 2);
+	const up = await upload(ctx, go, requireKnown(plan, known), index, known, held);
+	assertHeld(held);
+	go({ kind: 'committing' });
+	const manifest = buildManifest(ctx, plan, up);
+	await ctx.store.writeManifest(manifest);
+	let next: LocalIndex = { ...index, files: manifest.files, lastSnapshotId: manifest.id, pendingBlobs: {} };
+	await ctx.local.saveIndex(next);
+	const lastGcAt = index.lastGcAt;
+	if (lastGcAt === null || ctx.now() - lastGcAt >= s.retention.gcIntervalHours * HOUR_MS) {
+		assertHeld(held);
+		go({ kind: 'pruning', deleted: 0 });
+		await runPrune(ctx, (deleted) => {
+			assertHeld(held);
+			go({ kind: 'pruning', deleted });
+		});
+		next = { ...next, lastGcAt: ctx.now() };
+		await ctx.local.saveIndex(next);
+	}
+	go({
+		kind: 'done',
+		snapshotId: manifest.id,
+		stats: { ...stats(ctx, startedAt, scanned, manifest.skipped.length), ...counts(up) },
+	});
 }
 
 async function scan(ctx: BackupContext, go: Go) {
@@ -118,7 +118,7 @@ async function scan(ctx: BackupContext, go: Go) {
 	};
 	const entries: ScanEntry[] = listed.filter((f) => isIncluded(f.path, opts));
 	go({ kind: 'scanning', seen: entries.length });
-	const index = await ctx.local.loadIndex(s.vaultId);
+	const index = await ctx.local.loadIndex(backupSetOf(ctx));
 	const maxMb = ctx.vault.isMobile ? s.scope.maxFileSizeMbMobile : s.scope.maxFileSizeMb;
 	const plan = planScan(entries, index.files, Math.floor(maxMb * MB));
 	return { s, index, plan, scanned: entries.length };

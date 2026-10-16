@@ -34,6 +34,17 @@ export function planScan(entries: ScanEntry[], index: Record<string, FileEntry>,
 	return { unchanged, toHash, removed, skipped };
 }
 
+/** Files unchanged on disk still need upload when the backup set has no blob for their hash. */
+export function requireKnown(plan: Plan, known: Set<Hash>): Plan {
+	const unchanged: Record<string, FileEntry> = {};
+	const toHash = [...plan.toHash];
+	for (const [path, entry] of Object.entries(plan.unchanged)) {
+		if (known.has(entry.h)) unchanged[path] = entry;
+		else toHash.push({ path, size: entry.s, mtime: entry.m });
+	}
+	return { ...plan, unchanged, toHash };
+}
+
 export function hasChanges(plan: Plan, index: Record<string, FileEntry> = {}): boolean {
 	return (
 		plan.toHash.length > 0 ||

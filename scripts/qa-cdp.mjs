@@ -8,7 +8,7 @@ const env = Object.fromEntries(
 );
 
 const targets = await (await fetch('http://127.0.0.1:9222/json')).json();
-const target = targets.find((t) => t.type === 'page' && t.title.includes(vaultName));
+const target = targets.find((t) => t.type === 'page' && t.url.endsWith('/index.html') && t.title.includes(vaultName));
 if (!target) throw new Error(`no window titled with ${vaultName}; titles: ${targets.map((t) => t.title).join(' | ')}`);
 const ws = new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((r) => (ws.onopen = r));

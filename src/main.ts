@@ -1,6 +1,6 @@
 import { Notice, Platform, Plugin, type WorkspaceLeaf } from 'obsidian';
 import { runBackup } from './backup/backup-runner';
-import { runPrune } from './backup/prune-runner';
+import { runLockedPrune } from './backup/prune-runner';
 import { createScheduler, type Scheduler } from './backup/scheduler';
 import { ERRORS, LABEL } from './core/run-machine';
 import type { RunLogEntry, RunState } from './core/types';
@@ -139,9 +139,13 @@ export default class R2VaultSyncPlugin extends Plugin {
 		try {
 			const ctx = await this.services.context((s) => this.setState(s), this.manifest.version);
 			this.setState({ kind: 'pruning', deleted: 0 });
-			const result = await runPrune(ctx, (deleted) => this.setState({ kind: 'pruning', deleted }));
+			const result = await runLockedPrune(ctx, (deleted) => this.setState({ kind: 'pruning', deleted }));
 			this.setState({ kind: 'idle' });
-			new Notice(`Pruned ${result.manifestsDeleted} snapshots and ${result.blobsDeleted} blobs.`);
+			new Notice(
+				result.kind === 'locked'
+					? 'Another device is backing up. Try pruning again later.'
+					: `Pruned ${result.manifestsDeleted} snapshots and ${result.blobsDeleted} blobs.`,
+			);
 		} catch (e) {
 			this.setState({ kind: 'idle' });
 			new Notice(`Prune failed: ${e instanceof Error ? e.message : String(e)}`, 8000);

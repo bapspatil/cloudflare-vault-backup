@@ -171,7 +171,7 @@ export function encodeLocalIndex(idx: LocalIndex): Uint8Array {
 	for (const h of Object.keys(idx.pendingBlobs).sort()) pending[h] = idx.pendingBlobs[h] as number;
 	return encode({
 		format: idx.format,
-		vaultId: idx.vaultId,
+		backupSet: idx.backupSet,
 		lastSnapshotId: idx.lastSnapshotId,
 		lastGcAt: idx.lastGcAt,
 		files: sortedFiles(idx.files),
@@ -185,7 +185,7 @@ export function decodeLocalIndex(bytes: Uint8Array): Decoded<LocalIndex> {
 		for (const [h, t] of Object.entries(record(o.pendingBlobs))) pendingBlobs[h] = count(t);
 		return {
 			format: INDEX_FORMAT,
-			vaultId: str(o.vaultId),
+			backupSet: str(o.backupSet),
 			lastSnapshotId: nullable(o.lastSnapshotId, str),
 			lastGcAt: nullable(o.lastGcAt, count),
 			files: fileMap(o.files),

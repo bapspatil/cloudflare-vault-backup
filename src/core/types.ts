@@ -1,5 +1,5 @@
 export const MANIFEST_FORMAT = 1;
-export const INDEX_FORMAT = 1;
+export const INDEX_FORMAT = 2;
 export const VAULT_DESCRIPTOR_FORMAT = 1;
 
 export type Hash = string;
@@ -60,7 +60,8 @@ export interface LockRecord {
 
 export interface LocalIndex {
 	format: typeof INDEX_FORMAT;
-	vaultId: string;
+	/** Remote root plus blob scheme. Hashes in `files` are only meaningful inside this backup set. */
+	backupSet: string;
 	lastSnapshotId: SnapshotId | null;
 	lastGcAt: number | null;
 	files: Record<VaultPath, FileEntry>;

@@ -29,7 +29,7 @@ describe('local state index', () => {
 		const { state } = setup();
 		expect(await state.loadIndex('v1')).toEqual({
 			format: INDEX_FORMAT,
-			vaultId: 'v1',
+			backupSet: 'v1',
 			lastSnapshotId: null,
 			lastGcAt: null,
 			files: {},
@@ -41,7 +41,7 @@ describe('local state index', () => {
 		const { state } = setup();
 		const idx: LocalIndex = {
 			format: INDEX_FORMAT,
-			vaultId: 'v1',
+			backupSet: 'v1',
 			lastSnapshotId: '20260101T000000Z-abcd',
 			lastGcAt: 123,
 			files: { 'a.md': { h: hash, s: 5, m: 10 } },
@@ -57,11 +57,11 @@ describe('local state index', () => {
 		expect((await state.loadIndex('v1')).files).toEqual({});
 	});
 
-	it('yields fresh on vaultId mismatch', async () => {
+	it('yields fresh when the backup set changes', async () => {
 		const { state } = setup();
-		await state.saveIndex({ ...(await state.loadIndex('v1')), lastGcAt: 9 });
-		const idx = await state.loadIndex('v2');
-		expect(idx.vaultId).toBe('v2');
+		await state.saveIndex({ ...(await state.loadIndex('obsidian/v1|sha256')), lastGcAt: 9 });
+		const idx = await state.loadIndex('obsidian/v1|hmac-sha256');
+		expect(idx.backupSet).toBe('obsidian/v1|hmac-sha256');
 		expect(idx.lastGcAt).toBeNull();
 	});
 });

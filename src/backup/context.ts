@@ -2,6 +2,8 @@ import type { RunState } from '../core/types';
 import type { Settings } from '../settings';
 import type { LocalState, RemoteStore, R2Client, Sealer, VaultPort } from '../io/types';
 
+export const backupSetOf = (ctx: Pick<BackupContext, 'store' | 'sealer'>): string => `${ctx.store.root}|${ctx.sealer.scheme}`;
+
 export interface BackupContext {
 	vault: VaultPort;
 	store: RemoteStore;

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { runBackup } from '../../src/backup/backup-runner';
-import type { BackupContext } from '../../src/backup/context';
+import { runLockedPrune } from '../../src/backup/prune-runner';
+import { backupSetOf, type BackupContext } from '../../src/backup/context';
 import { sha256Hex } from '../../src/core/crypto';
 import { backupRoot, blobKey, blobsPrefix, descriptorKey, lockKey, snapshotsPrefix } from '../../src/core/paths';
 import type { RunState } from '../../src/core/types';
@@ -193,7 +194,7 @@ describe('runBackup', () => {
 		const failed = expectFailed(await h.run());
 		expect(failed.phase).toBe('uploading');
 		expect(failed.error).toEqual({ code: 'network', detail: 'connection reset' });
-		const index = await h.ctx.local.loadIndex('v1');
+		const index = await h.ctx.local.loadIndex(backupSetOf(h.ctx));
 		expect(Object.keys(index.pendingBlobs)).toHaveLength(1);
 		expect(index.lastSnapshotId).toBeNull();
 		expect(h.keys(snapshotsPrefix(h.root))).toEqual([]);
@@ -203,7 +204,7 @@ describe('runBackup', () => {
 		expect(done.stats.uploaded).toBe(2);
 		expect(done.stats.reused).toBe(1);
 		expect(h.keys(blobsPrefix(h.root))).toHaveLength(3);
-		expect((await h.ctx.local.loadIndex('v1')).pendingBlobs).toEqual({});
+		expect((await h.ctx.local.loadIndex(backupSetOf(h.ctx))).pendingBlobs).toEqual({});
 	});
 
 	it('fails with locked and uploads nothing when another device holds the lock', async () => {
@@ -227,14 +228,69 @@ describe('runBackup', () => {
 		edit(h, 'a.md', 'alpha v2', 5_000_000);
 		const second = expectDone(await h.run());
 		Object.assign(h.settings.retention, { keepLast: 1, daily: 0, weekly: 0, monthly: 0 });
-		await h.ctx.local.saveIndex({ ...(await h.ctx.local.loadIndex('v1')), lastGcAt: null });
+		await h.ctx.local.saveIndex({ ...(await h.ctx.local.loadIndex(backupSetOf(h.ctx))), lastGcAt: null });
 		h.advance(25 * HOUR);
 		edit(h, 'b.md', 'bravo v2', 7_000_000);
 		const third = expectDone(await h.run());
 		expect(h.keys(snapshotsPrefix(h.root))).toEqual([`${snapshotsPrefix(h.root)}${third.snapshotId}.json`]);
 		expect([first.snapshotId, second.snapshotId]).not.toContain(third.snapshotId);
 		expect(h.keys(blobsPrefix(h.root))).toEqual(await blobKeysFor(h.root, ['alpha v2', 'bravo v2', 'charlie']));
-		expect((await h.ctx.local.loadIndex('v1')).lastGcAt).toBe(h.ctx.now());
+		expect((await h.ctx.local.loadIndex(backupSetOf(h.ctx))).lastGcAt).toBe(h.ctx.now());
+	});
+
+	it('a manual prune deletes nothing while another device holds the lock', async () => {
+		const h = setup(THREE);
+		expectDone(await h.run());
+		edit(h, 'a.md', 'alpha v2', 5_000_000);
+		expectDone(await h.run());
+		Object.assign(h.settings.retention, { keepLast: 1, daily: 0, weekly: 0, monthly: 0, graceHours: 0 });
+		h.fake.objects.set(lockKey(h.root), {
+			body: enc.encode(JSON.stringify({ deviceId: 'dev-b', runId: 'r1', expiresAt: '2099-01-01T00:00:00.000Z' })),
+			etag: 'held',
+		});
+		const snapshots = h.keys(snapshotsPrefix(h.root));
+		const blobs = h.keys(blobsPrefix(h.root));
+		expect(await runLockedPrune(h.ctx, () => undefined)).toEqual({ kind: 'locked' });
+		expect(h.keys(snapshotsPrefix(h.root))).toEqual(snapshots);
+		expect(h.keys(blobsPrefix(h.root))).toEqual(blobs);
+	});
+
+	it('a manual prune under a free lock prunes, records the run and releases the lock', async () => {
+		const h = setup(THREE);
+		expectDone(await h.run());
+		edit(h, 'a.md', 'alpha v2', 5_000_000);
+		const second = expectDone(await h.run());
+		Object.assign(h.settings.retention, { keepLast: 1, daily: 0, weekly: 0, monthly: 0, graceHours: 0 });
+		h.advance(HOUR);
+		expect(await runLockedPrune(h.ctx, () => undefined)).toEqual({ kind: 'done', manifestsDeleted: 1, blobsDeleted: 1 });
+		expect(h.keys(snapshotsPrefix(h.root))).toEqual([`${snapshotsPrefix(h.root)}${second.snapshotId}.json`]);
+		expect(h.keys(blobsPrefix(h.root))).toEqual(await blobKeysFor(h.root, ['alpha v2', 'bravo', 'charlie']));
+		expect((await h.ctx.local.loadIndex(backupSetOf(h.ctx))).lastGcAt).toBe(h.ctx.now());
+		edit(h, 'b.md', 'bravo v2', 7_000_000);
+		expectDone(await h.run());
+	});
+
+	it('a new backup set gets every file even when nothing changed locally', async () => {
+		const h = setup(THREE);
+		expectDone(await h.run());
+		const root2 = backupRoot('moved', h.settings.vaultId);
+		h.ctx.store = createRemoteStore(h.ctx.client, root2, h.ctx.sealer);
+		const moved = expectDone(await h.run());
+		expect(moved.snapshotId).toMatch(SNAP_ID);
+		expect(moved.stats.uploaded).toBe(3);
+		expect(h.keys(blobsPrefix(root2))).toEqual(await blobKeysFor(root2, ['alpha', 'bravo', 'charlie']));
+	});
+
+	it('re-uploads unchanged files when no snapshot in the backup set vouches for their blobs', async () => {
+		const h = setup(THREE);
+		expectDone(await h.run());
+		const [gone] = await blobKeysFor(h.root, ['bravo']);
+		h.fake.objects.delete(gone!);
+		await h.ctx.store.deleteManifests(await h.ctx.store.listSnapshots());
+		edit(h, 'a.md', 'alpha v2', 5_000_000);
+		const next = expectDone(await h.run());
+		expect(next.stats.uploaded).toBe(3);
+		expect(h.keys(blobsPrefix(h.root))).toEqual(await blobKeysFor(h.root, ['alpha', 'alpha v2', 'bravo', 'charlie']));
 	});
 
 	it('skips files over the mobile size cap', async () => {

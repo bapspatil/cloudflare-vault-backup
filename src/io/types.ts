@@ -109,7 +109,7 @@ export interface VaultPort {
 }
 
 export interface LocalState {
-	loadIndex(vaultId: string): Promise<LocalIndex>;
+	loadIndex(backupSet: string): Promise<LocalIndex>;
 	saveIndex(index: LocalIndex): Promise<void>;
 	loadLog(): Promise<RunLogEntry[]>;
 	appendLog(entry: RunLogEntry): Promise<void>;

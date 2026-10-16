@@ -120,8 +120,8 @@ describe('vault descriptor codec', () => {
 
 describe('local index codec', () => {
 	const idx: LocalIndex = {
-		format: 1,
-		vaultId: '0123456789abcdef',
+		format: 2,
+		backupSet: 'obsidian/0123456789abcdef|sha256',
 		lastSnapshotId: '20261016T162233Z-3fa9',
 		lastGcAt: null,
 		files: { 'a.md': a },
