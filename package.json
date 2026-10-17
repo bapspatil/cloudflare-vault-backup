@@ -52,5 +52,8 @@
 	"dependencies": {
 		"aws4fetch": "1.0.20",
 		"diff": "9.0.0"
+	},
+	"overrides": {
+		"moment": "2.31.0"
 	}
 }
