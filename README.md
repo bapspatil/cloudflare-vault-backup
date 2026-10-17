@@ -100,15 +100,11 @@ Update the plugin on every device that backs up to the same backup set at the sa
 You need a Cloudflare account with R2 enabled. The plugin needs Obsidian 1.11.4 or later because it stores your credentials in Obsidian's secret storage.
 
 1. In the Cloudflare dashboard, go to **R2 object storage** and create a bucket.
-2. On the R2 overview page, select **Manage** next to **API tokens**.
-3. Select **Create Account API token**.
-4. Give the token the **Object Read & Write** permission and apply it to the bucket you created only.
-5. Create the token, then copy the **Access Key ID** and the **Secret Access Key**. Cloudflare shows the secret once.
-6. Copy your account ID from the R2 overview page. It is 32 hex characters.
-7. In Obsidian, open **Settings → Cloudflare Vault Backup**.
-8. Under **Connection**, enter the account ID, the bucket name, and a prefix. The default prefix is `obsidian`. One bucket can hold several vaults under one prefix.
-9. Add the access key ID and the secret access key in their secret fields.
-10. Select **Test connection**.
+2. In Obsidian, open **Settings → Cloudflare Vault Backup**.
+3. Under **Connection**, select **Create token in Cloudflare**. This opens the Cloudflare dashboard with the R2 read and write permission pre-selected. Create an account API token scoped to the bucket you created, then copy the **Access Key ID** and the **Secret Access Key**. Cloudflare shows the secret once. You can also create the token manually in the dashboard under **R2 → Manage API tokens**.
+4. Enter your account ID (32 hex characters, from the R2 overview page), the bucket name, and a prefix. The default prefix is `obsidian`. One bucket can hold several vaults under one prefix.
+5. Add the access key ID and the secret access key in their secret fields.
+6. Select **Test connection**.
 
 The connection test writes a small probe object under `<prefix>/<vaultId>/`, reads it back, and deletes it. Success shows `Write OK, Read OK, Delete OK`.
 

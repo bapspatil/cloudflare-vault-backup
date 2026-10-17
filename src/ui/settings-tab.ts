@@ -4,6 +4,7 @@ import { LABEL } from '../core/run-machine';
 import type { RunState } from '../core/types';
 import { LogModal } from './log-modal';
 import { addIntSetting, addSecretSetting, formatRelative } from './settings-controls';
+import { r2TokenTemplateUrl } from '../utils/cloudflare-links';
 import { computeUsage, PRICE_NOTE } from './usage';
 
 const INTERVALS: [number, string][] = [
@@ -119,6 +120,14 @@ export class SettingsTab extends PluginSettingTab {
 				t.setValue(c.prefix).onChange(async (v) => {
 					c.prefix = v.trim();
 					await this.save();
+				}),
+			);
+		new Setting(el)
+			.setName('Create an R2 token')
+			.setDesc('Opens Cloudflare with the R2 read and write permission pre-selected. Create the token there, then paste the access key ID and secret access key below.')
+			.addButton((b) =>
+				b.setButtonText('Create token in Cloudflare').setCta().onClick(() => {
+					window.open(r2TokenTemplateUrl(), '_blank');
 				}),
 			);
 		const keyDesc = "Keys are stored in Obsidian's secret storage, not in the plugin data file.";
