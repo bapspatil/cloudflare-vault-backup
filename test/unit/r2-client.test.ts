@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { createR2Client, encodeKey } from '../../src/io/r2-client';
 import { R2Error } from '../../src/io/types';
 import type { R2Credentials, TransportRequest, TransportResponse } from '../../src/io/types';
@@ -32,6 +32,10 @@ function listXml(keys: string[], next: string | null): Uint8Array {
 	const tail = next ? `<IsTruncated>true</IsTruncated><NextContinuationToken>${next}</NextContinuationToken>` : '<IsTruncated>false</IsTruncated>';
 	return enc.encode(`<ListBucketResult>${contents}${tail}</ListBucketResult>`);
 }
+
+beforeAll(() => {
+	vi.stubGlobal('window', { setTimeout, clearTimeout });
+});
 
 describe('createR2Client', () => {
 	it('signs requests with SigV4 for s3/auto and an unsigned payload', async () => {

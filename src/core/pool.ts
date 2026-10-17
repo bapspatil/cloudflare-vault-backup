@@ -29,7 +29,7 @@ export async function runPool<T, R>(
 }
 
 export function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 export function jitteredBackoffMs(attempt: number, baseMs: number, maxMs: number, random: () => number): number {

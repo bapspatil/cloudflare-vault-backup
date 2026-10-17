@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { jitteredBackoffMs, runPool, sleep } from '../../src/core/pool';
+
+beforeAll(() => {
+	vi.stubGlobal('window', { setTimeout, clearTimeout });
+});
 
 describe('runPool', () => {
 	it('never exceeds concurrency and preserves order', async () => {
