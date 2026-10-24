@@ -1,4 +1,5 @@
 import type { Hash, ListPage, LocalIndex, LockRecord, Manifest, OpCounters, RunLogEntry, SnapshotId, VaultDescriptor } from '../core/types';
+import type { BackupHealth } from '../core/stale-backup';
 
 export interface TransportRequest {
 	url: string;
@@ -109,6 +110,8 @@ export interface VaultPort {
 }
 
 export interface LocalState {
+	loadBackupHealth(): Promise<BackupHealth>;
+	saveBackupHealth(health: BackupHealth): Promise<void>;
 	loadIndex(backupSet: string): Promise<LocalIndex>;
 	saveIndex(index: LocalIndex): Promise<void>;
 	loadLog(): Promise<RunLogEntry[]>;

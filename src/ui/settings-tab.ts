@@ -89,6 +89,13 @@ export class SettingsTab extends PluginSettingTab {
 				await refresh();
 			}),
 		);
+		setting.addButton((b) =>
+			b.setButtonText('Verify latest backup').onClick(async () => {
+				b.setDisabled(true);
+				await this.plugin.verifyLatestBackup();
+				b.setDisabled(false);
+			}),
+		);
 		void refresh();
 	}
 
@@ -242,6 +249,17 @@ export class SettingsTab extends PluginSettingTab {
 				await this.save();
 			}),
 		);
+		addIntSetting(new Setting(el)
+			.setName('Warn when the last successful backup is older than (hours)')
+			.setDesc('Show a persistent warning for overdue scheduled backups. Set to 0 to turn off.'), {
+			min: 0,
+			max: 100_000,
+			get: () => this.plugin.settings.staleBackupWarningHours,
+			set: async (n) => {
+				this.plugin.settings.staleBackupWarningHours = n;
+				await this.save();
+			},
+		});
 	}
 
 	private renderRetention(el: HTMLElement): void {

@@ -73,10 +73,10 @@ export class ServiceFactory {
 		return { client, root: backupRoot(settings.connection.prefix, settings.vaultId) };
 	}
 
-	async services(): Promise<Services> {
+	async services(readOnly = false): Promise<Services> {
 		const settings = this.getSettings();
 		const { client, root } = await this.client();
-		const sealer = await this.resolveSealer(client, root, settings);
+		const sealer = await this.resolveSealer(client, root, settings, readOnly);
 		return { vault: this.vault, local: this.local, client, root, sealer };
 	}
 
@@ -98,13 +98,14 @@ export class ServiceFactory {
 		};
 	}
 
-	private async resolveSealer(client: R2Client, root: string, settings: Settings): Promise<Sealer> {
+	private async resolveSealer(client: R2Client, root: string, settings: Settings, readOnly: boolean): Promise<Sealer> {
 		if (!settings.encryption.enabled) return plainSealer();
 		const passphrase = this.app.secretStorage.getSecret(settings.encryption.passphraseSecretId);
 		if (!passphrase) throw new SetupError('Encryption is on but no passphrase is stored.');
 		const plainStore = createRemoteStore(client, root, plainSealer());
 		let descriptor = await plainStore.readDescriptor();
 		if (descriptor === null) {
+			if (readOnly) throw new SetupError('No encrypted backup set to verify.');
 			const created = await newEncryptionDescriptor(passphrase);
 			descriptor = {
 				format: VAULT_DESCRIPTOR_FORMAT,

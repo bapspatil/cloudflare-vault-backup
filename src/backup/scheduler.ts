@@ -9,6 +9,7 @@ export interface SchedulerDeps {
 	isRunning: () => boolean;
 	lastRunEndedAt: () => number | null;
 	run: () => Promise<unknown>;
+	onTick?: () => void;
 }
 
 export interface Scheduler {
@@ -25,6 +26,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
 	let lastVaultEventAt: number | null = null;
 
 	const tick = (): TickDecision => {
+		deps.onTick?.();
 		const s = deps.getSettings();
 		const decision = decideTick({
 			nowMs: deps.now(),

@@ -78,6 +78,7 @@ export const PLUGIN_STATE_FILES = {
 	index: 'index.json',
 	log: 'log.json',
 	counters: 'counters.json',
+	health: 'backup-health.json',
 } as const;
 
 export function defaultExcludes(configDir: string, pluginId: string): string[] {

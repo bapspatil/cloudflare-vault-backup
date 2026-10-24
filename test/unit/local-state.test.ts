@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { INDEX_FORMAT } from '../../src/core/types';
 import type { LocalIndex, OpCounters, RunLogEntry } from '../../src/core/types';
 import { createLocalState } from '../../src/io/local-state';
@@ -7,6 +7,14 @@ import { isIncluded } from '../../src/core/paths';
 import { PLUGIN_ID } from '../../src/settings';
 
 const enc = new TextEncoder();
+const NOW = Date.parse('2026-10-24T12:00:00Z');
+
+beforeEach(() => {
+	vi.useFakeTimers();
+	vi.setSystemTime(NOW);
+});
+
+afterEach(() => vi.useRealTimers());
 
 function setup() {
 	const vault = createMemoryVault();
@@ -67,6 +75,57 @@ describe('local state index', () => {
 });
 
 describe('local state log and counters', () => {
+	it('loads the latest successful log entry for existing installations', async () => {
+		const { state } = setup();
+		await state.appendLog(entry(10));
+		await state.appendLog(entry(20));
+		await state.appendLog({ ...entry(30), result: { kind: 'failed', error: { code: 'io', detail: 'disk' } } });
+		expect(await state.loadBackupHealth()).toEqual({ trackedSince: NOW, lastSuccessAt: 21, lastWarningAt: null });
+	});
+
+	it('persists success and notice deduplication after log rotation', async () => {
+		const { state } = setup();
+		expect(await state.loadBackupHealth()).toEqual({ trackedSince: NOW, lastSuccessAt: null, lastWarningAt: null });
+		await state.saveBackupHealth({ trackedSince: 0, lastSuccessAt: 10, lastWarningAt: 20 });
+		for (let i = 0; i < 101; i++) {
+			await state.appendLog({ ...entry(30 + i), result: { kind: 'failed', error: { code: 'network', detail: 'offline' } } });
+		}
+		expect(await state.loadBackupHealth()).toEqual({ trackedSince: 0, lastSuccessAt: 10, lastWarningAt: 20 });
+	});
+
+	it.each(['garbage', '{}', '{"lastSuccessAt":"yesterday","lastWarningAt":null}', '{"lastSuccessAt":null,"lastWarningAt":-1}'])('recovers invalid backup health: %s', async (raw) => {
+		const { state, vault } = setup();
+		await state.appendLog(entry(10));
+		vault.pluginFiles.set('backup-health.json', enc.encode(raw));
+		expect(await state.loadBackupHealth()).toEqual({ trackedSince: NOW, lastSuccessAt: 11, lastWarningAt: null });
+	});
+
+	it('starts tracking at first load when the log contains only failures', async () => {
+		const { state } = setup();
+		await state.appendLog({ ...entry(10), result: { kind: 'failed', error: { code: 'network', detail: 'offline' } } });
+		const health = await state.loadBackupHealth();
+		expect(health).toEqual({ trackedSince: NOW, lastSuccessAt: null, lastWarningAt: null });
+		await state.saveBackupHealth(health);
+		vi.setSystemTime(NOW + 3_600_000);
+		expect(await state.loadBackupHealth()).toEqual(health);
+	});
+
+	it.each([null, 10])('migrates an older health record with last success %s and preserves its timestamps', async (lastSuccessAt) => {
+		const { state, vault } = setup();
+		vault.pluginFiles.set('backup-health.json', enc.encode(JSON.stringify({ lastSuccessAt, lastWarningAt: 20 })));
+		const health = await state.loadBackupHealth();
+		expect(health).toEqual({ trackedSince: NOW, lastSuccessAt, lastWarningAt: 20 });
+		await state.saveBackupHealth(health);
+		vi.setSystemTime(NOW + 3_600_000);
+		expect(await state.loadBackupHealth()).toEqual(health);
+	});
+
+	it.each([null, -1, 'yesterday'])('replaces an invalid tracking baseline %s without losing backup history', async (trackedSince) => {
+		const { state, vault } = setup();
+		vault.pluginFiles.set('backup-health.json', enc.encode(JSON.stringify({ trackedSince, lastSuccessAt: 10, lastWarningAt: 20 })));
+		expect(await state.loadBackupHealth()).toEqual({ trackedSince: NOW, lastSuccessAt: 10, lastWarningAt: 20 });
+	});
+
 	it('keeps the 100 newest, newest first', async () => {
 		const { state } = setup();
 		for (let i = 0; i < 105; i++) await state.appendLog(entry(i));
@@ -101,8 +160,10 @@ describe('plugin state never reaches a backup', () => {
 		await state.saveIndex(await state.loadIndex('v1'));
 		await state.appendLog(entry(1));
 		await state.saveCounters({ month: '2026-10', classA: 1, classB: 1, bytesUploaded: 1, bytesDownloaded: 1 });
+		await state.saveBackupHealth({ trackedSince: NOW, lastSuccessAt: 1, lastWarningAt: null });
 		const written = [...vault.pluginFiles.keys()].map((name) => `.obsidian/plugins/${PLUGIN_ID}/${name}`);
 		expect(written.sort()).toEqual([
+			'.obsidian/plugins/cloudflare-vault-backup/backup-health.json',
 			'.obsidian/plugins/cloudflare-vault-backup/counters.json',
 			'.obsidian/plugins/cloudflare-vault-backup/index.json',
 			'.obsidian/plugins/cloudflare-vault-backup/log.json',

@@ -22,6 +22,24 @@ function setup(over: Partial<SchedulerDeps> = {}) {
 }
 
 describe('scheduler', () => {
+	it('checks backup health on every tick, even while disabled, running, or in the quiet period', () => {
+		let checks = 0;
+		const { state, scheduler } = setup({ onTick: () => { checks++; } });
+		state.running = true;
+		scheduler.tick();
+		state.running = false;
+		scheduler.noteVaultEvent();
+		scheduler.tick();
+		expect(checks).toBe(2);
+		expect(state.runs).toBe(0);
+		const disabled = setup({
+			onTick: () => { checks++; },
+			getSettings: () => ({ intervalMinutes: 0, quietSeconds: 90, onStartup: false }),
+		});
+		disabled.scheduler.tick();
+		expect(checks).toBe(3);
+	});
+
 	it('registers a 60000 ms interval on start', () => {
 		const { state, scheduler } = setup();
 		scheduler.start();

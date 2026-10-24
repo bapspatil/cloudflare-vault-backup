@@ -39,6 +39,22 @@ export function createLocalState(port: Pick<VaultPort, 'readPluginFile' | 'write
 	}
 
 	return {
+		async loadBackupHealth() {
+			const now = Date.now();
+			const value = parseJson(await port.readPluginFile(PLUGIN_STATE_FILES.health));
+			if (typeof value === 'object' && value !== null && 'lastSuccessAt' in value && 'lastWarningAt' in value) {
+				const validTime = (time: unknown): time is number | null => time === null || (typeof time === 'number' && Number.isFinite(time) && time >= 0);
+				if (validTime(value.lastSuccessAt) && validTime(value.lastWarningAt)) {
+					const trackedSince = 'trackedSince' in value && value.trackedSince !== null && validTime(value.trackedSince) ? value.trackedSince : now;
+					return { trackedSince, lastSuccessAt: value.lastSuccessAt, lastWarningAt: value.lastWarningAt };
+				}
+			}
+			const successes = (await loadLog()).filter((entry) => entry.result.kind === 'done' && Number.isFinite(entry.endedAt) && entry.endedAt >= 0);
+			return { trackedSince: now, lastSuccessAt: successes.length === 0 ? null : Math.max(...successes.map((entry) => entry.endedAt)), lastWarningAt: null };
+		},
+
+		saveBackupHealth: (health) => port.writePluginFile(PLUGIN_STATE_FILES.health, enc.encode(JSON.stringify(health))),
+
 		async loadIndex(backupSet) {
 			const bytes = await port.readPluginFile(PLUGIN_STATE_FILES.index);
 			if (bytes) {
