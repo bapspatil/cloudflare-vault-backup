@@ -36,8 +36,8 @@
 	"devDependencies": {
 		"@eslint/js": "^9.39.4",
 		"@types/diff": "8.0.0",
-		"@types/node": "^22.15.17",
-		"esbuild": "0.25.5",
+		"@types/node": "^24.19.2",
+		"esbuild": "0.28.2",
 		"eslint": "^9.39.4",
 		"eslint-import-resolver-node": "0.4.0",
 		"eslint-plugin-obsidianmd": "^0.4.0",
@@ -45,8 +45,8 @@
 		"happy-dom": "21.0.4",
 		"jiti": "^2.6.1",
 		"obsidian": "1.14.4",
-		"typescript": "^5.8.3",
-		"typescript-eslint": "^8.59.1",
+		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.72.0",
 		"vitest": "5.0.5"
 	},
 	"dependencies": {
