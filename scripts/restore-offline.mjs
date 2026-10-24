@@ -33,7 +33,7 @@ function safePath(path) {
 	if (names[0] === '.obsidian') {
 		if (names.length === 2 && ['workspace.json', 'workspace-mobile.json'].includes(names[1])) return false;
 		if (names.length === 4 && names[1] === 'plugins' && names[2] === 'cloudflare-vault-backup' &&
-			['data.json', 'index.json', 'log.json', 'counters.json'].includes(names[3])) return false;
+			['data.json', 'index.json', 'log.json', 'counters.json', 'backup-health.json'].includes(names[3])) return false;
 	}
 	return true;
 }
