@@ -13,7 +13,7 @@ Your local vault is always the source of truth. The plugin never changes local f
 
 ## How it works
 
-Each backup creates a snapshot. A snapshot is one JSON manifest that maps every file path to a SHA-256 hash, a size, and a modification time. File contents live in separate blobs named by their hash.
+Each backup creates a snapshot. A snapshot is one JSON manifest that maps every file path to a content hash, a size, and a modification time. The hash is SHA-256 for plaintext backups and HMAC-SHA256 for encrypted backups. File contents live in separate blobs named by their hash.
 
 Because blobs are content-addressed, a file that did not change between snapshots is stored once. A backup uploads only blobs the bucket does not already have. After a one-note edit, a backup uploads one blob and one manifest. Any snapshot can be restored as it was at that point in time.
 
@@ -168,7 +168,145 @@ If you lose the passphrase, nobody can read the backup. Cloudflare cannot recove
 
 The first backup records whether a backup set is encrypted. Switching encryption on or off for an existing backup set fails with an error. To switch, change the prefix so the plugin starts a new backup set. The next backup then uploads every file to the new set.
 
-Encrypted blobs and manifests are unreadable in the R2 dashboard. You can restore them only through the plugin.
+Encrypted blobs and manifests are unreadable in the R2 dashboard. Restore them through the plugin or with the offline script below.
+
+## Restore without Obsidian
+
+Use [scripts/restore-offline.mjs](scripts/restore-offline.mjs) with Node 20+ or Bun. It has no dependencies and makes no network requests. You need a local copy of the backup set and, if encrypted, its passphrase. Neither Obsidian nor the plugin's local index is required.
+
+### Download and restore
+
+Configure the AWS CLI with your R2 access key and secret, as described in [Cloudflare's AWS CLI instructions](https://developers.cloudflare.com/r2/examples/aws/aws-cli/). Download the entire vault prefix, including `vault.json`, `snapshots/`, and `blobs/`:
+
+```bash
+aws s3 sync "s3://<bucket>/<prefix>/<vaultId>/" ./bucket-copy \
+	--endpoint-url "https://<account-id>.r2.cloudflarestorage.com" --region auto
+```
+
+Replace the placeholders. If the prefix is empty, use `s3://<bucket>/<vaultId>/`. Pause backups and pruning during the download so referenced objects are not removed while you copy them. An equivalent rclone download is also suitable if it preserves the relative object keys. `./bucket-copy/vault.json` must exist directly inside the directory passed to `--src`.
+
+Restore the newest snapshot into a new directory whose parent already exists:
+
+```bash
+node scripts/restore-offline.mjs --src ./bucket-copy --out ./recovered-vault
+```
+
+For an encrypted backup, read the passphrase into an environment variable. This Bash example keeps it out of shell history and command arguments:
+
+```bash
+read -r -s -p 'Backup passphrase: ' CVB_RESTORE_PASSPHRASE
+printf '\n'
+export CVB_RESTORE_PASSPHRASE
+node scripts/restore-offline.mjs --src ./bucket-copy --out ./recovered-vault \
+	--passphrase-env CVB_RESTORE_PASSPHRASE
+unset CVB_RESTORE_PASSPHRASE
+```
+
+Add `--snapshot 20261016T162233Z-3fa9` to select a particular snapshot. Use `bun scripts/restore-offline.mjs` instead of `node scripts/restore-offline.mjs` to run with Bun.
+
+The script verifies the decrypted contents of every blob against its hash and size before writing that file. It refuses existing output directories, including symlinks, and creates files exclusively. It rejects absolute paths, backslashes, empty segments, `.` and `..` segments, paths longer than 1,024 characters, Windows device names, control characters, stream separators, trailing dots or spaces, and ambiguous case or Unicode aliases. As in the plugin's restore, it rejects hidden paths and short-name aliases outside the configuration folder, and refuses workspace and plugin state files. The standalone script recognizes `.obsidian` as the configuration folder; a custom hidden configuration folder is refused. It writes only below `--out`.
+
+A failure exits with a nonzero status. A wrong passphrase or an unsafe manifest path fails before the output directory is created. A missing or corrupt blob can leave an incomplete output directory containing files already verified. Retry into a new directory after fixing the local copy. The script restores file bytes, including configuration files present in the snapshot; it does not recreate modification times or empty directories. Files recorded in `skipped` were not backed up and cannot be recovered from that snapshot.
+
+### Object keys and snapshot selection
+
+The root is `<prefix>/<vaultId>`, with leading and trailing `/` characters removed from the configured prefix. An empty prefix gives the root `<vaultId>`. Relative to that root, the exact keys are:
+
+| Key | Contents |
+| --- | --- |
+| `vault.json` | Unencrypted UTF-8 JSON backup set descriptor |
+| `lock.json` | Temporary unencrypted run lock with `deviceId`, `runId`, and `expiresAt`; ignored during offline restore |
+| `snapshots/<snapId>.json` | UTF-8 JSON manifest, or a binary encrypted envelope despite the `.json` suffix |
+| `blobs/<hash[0:2]>/<hash>` | Raw file bytes, or a binary encrypted envelope |
+
+Hashes are 64 lowercase hexadecimal characters. The shard directory is the first two characters of the full hash. Paths appear in the manifest, never in blob keys. There is no compression or chunking: one blob holds one complete file, and identical contents share a blob within a backup set.
+
+List the names in `snapshots/` and remove the `.json` suffix. A snapshot id has the form `YYYYMMDDTHHMMSSZ-xxxx`, where the timestamp is UTC and `xxxx` is four random lowercase hex characters. Sort ids lexicographically ascending and choose the last for the newest snapshot. The random suffix breaks ties within the same second; it does not record their creation order. The script considers ids with valid timestamps. Each manifest contains the complete file map for that snapshot, so earlier snapshots are not needed.
+
+### Descriptor and manifest JSON
+
+`vault.json` has descriptor `format: 1`. Its fields are `format`, `vaultId`, `vaultName`, `createdAt` as an ISO date string, and `encryption`. For an unencrypted backup:
+
+```json
+{
+	"format": 1,
+	"vaultId": "0123456789abcdef",
+	"vaultName": "My vault",
+	"createdAt": "2026-10-16T16:22:33.000Z",
+	"encryption": null
+}
+```
+
+For an encrypted backup, `encryption` is an object with exactly these written fields:
+
+| Field | Value |
+| --- | --- |
+| `kdf` | `"PBKDF2-SHA256"` |
+| `iterations` | Iteration count; new sets default to `600000`. Readers accept integers from `100000` through `10000000`. Use the stored value. |
+| `salt` | Standard base64 encoding of the random salt; new sets use 16 bytes |
+| `check` | Standard base64 encoding of an encrypted envelope whose plaintext is the UTF-8 string `r2-vault-sync-check` |
+
+A decoded snapshot manifest has manifest `format: 1` for both plaintext and encrypted sets. This example references the five UTF-8 bytes `hello`:
+
+```json
+{
+	"format": 1,
+	"id": "20261016T162233Z-3fa9",
+	"createdAt": "2026-10-16T16:22:33.000Z",
+	"deviceId": "0123456789abcdef",
+	"pluginVersion": "1.3.0",
+	"blobScheme": "sha256",
+	"totals": { "files": 1, "bytes": 5 },
+	"files": {
+		"notes/hello.md": {
+			"h": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+			"s": 5,
+			"m": 1792167753000
+		}
+	},
+	"skipped": []
+}
+```
+
+`id` must match the snapshot filename. `createdAt` is an ISO date string. `deviceId` identifies the writer; `pluginVersion` records its version. `blobScheme` is `sha256` or `hmac-sha256`. Each key in `files` is a vault-relative path using `/`. Each entry has `h` as the blob hash, `s` as the plaintext byte length, and `m` as the modification time in milliseconds since the Unix epoch. `totals.files` counts the file entries; `totals.bytes` sums their `s` values. `skipped` contains objects with `path`, `reason` as `too-large` or `unreadable`, and `size` in bytes. File keys are sorted when the plugin serializes the manifest.
+
+These JSON format versions are separate from encryption envelope versions. The local index uses format 2, but it is not a bucket object and is not needed to restore. The script rejects unsupported descriptor, manifest, and envelope versions.
+
+### Blob hashes and encryption envelopes
+
+For plaintext sets, `h = hex(SHA-256(fileBytes))`; the blob is stored unchanged. For encrypted sets, `h = hex(HMAC-SHA256(hmacKey, plaintextFileBytes))`. Hashes cover the complete plaintext, not the envelope, path, or ciphertext.
+
+Derive the encrypted set's keys as follows:
+
+1. Encode the passphrase as UTF-8 without normalization or trimming. Decode `encryption.salt` from standard base64.
+2. Run PBKDF2 with HMAC-SHA256, that salt, and the stored iteration count, requesting 512 bits (64 bytes).
+3. Use bytes `[0, 32)` as the AES-256-GCM key and bytes `[32, 64)` as the HMAC-SHA256 key. There is no additional key derivation step.
+4. Base64-decode and decrypt `encryption.check` with the check context below. Its plaintext must equal `r2-vault-sync-check` before processing the snapshot.
+
+New encrypted objects use this binary envelope:
+
+| Byte offsets | Contents |
+| --- | --- |
+| `0..3` | Magic bytes `52 32 56 53` in hex, ASCII `R2VS` |
+| `4` | Version byte `02` |
+| `5..16` | Random 12-byte IV, generated separately for every encryption |
+| `17..end` | AES-GCM ciphertext followed by its 16-byte authentication tag |
+
+The overhead is 33 bytes. AES-GCM uses a 128-bit tag. The envelope carries no salt or iteration count; those come from `vault.json`. Only `salt` and `check` in the descriptor are base64 text. Manifest and blob objects contain the raw binary envelope.
+
+Version 2 authenticates the following exact UTF-8 strings as additional authenticated data (AAD), without a newline or terminating NUL:
+
+| Object | AAD |
+| --- | --- |
+| Descriptor's encrypted `check` | `r2vs:v2:check` |
+| Snapshot manifest | `r2vs:v2:manifest:<snapId>` |
+| Blob | `r2vs:v2:blob:<hash>` |
+
+`<snapId>` excludes `.json` and `<hash>` is the complete 64-character hash. Neither AAD nor the context is stored in the envelope. Construct it from the object's role and name. The bucket prefix and vault id are not part of the AAD. The HMAC key names and verifies blobs; it is not a separate envelope MAC. AES-GCM supplies the envelope authentication tag.
+
+The plugin and standalone script also read legacy version `01` envelopes. Their magic, IV, ciphertext, tag, key derivation, and binary layout are identical, but AES-GCM uses no AAD. Legacy checks are still base64-encoded envelopes in `vault.json`. Choose whether to supply AAD from each envelope's version byte; a set can contain both versions. Legacy envelopes do not authenticate the object's role or name. After decryption, check the manifest id and verify every plaintext blob hash as usual.
+
+To rebuild a snapshot independently, decode the descriptor, unlock the set if needed, then read and optionally decrypt the selected manifest. For each `files[path]`, fetch `blobs/<first two characters of h>/<h>`, decrypt it using that blob's context if encrypted, recompute the plaintext SHA-256 or HMAC-SHA256 hash, and check `s`. Validate the path before creating its parent directories and writing the verified bytes under your output folder.
 
 ## Retention and cost
 

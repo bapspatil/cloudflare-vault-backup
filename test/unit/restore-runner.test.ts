@@ -199,7 +199,7 @@ describe('restoreSnapshot', () => {
 			['img/c.png', 'written'],
 		]);
 		expect(calls).toHaveLength(3);
-		expect(calls.at(-1)).toEqual([3, 3]);
+		expect(calls[calls.length - 1]).toEqual([3, 3]);
 	});
 });
 

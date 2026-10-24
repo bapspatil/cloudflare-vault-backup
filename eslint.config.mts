@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import obsidianmd from 'eslint-plugin-obsidianmd';
 import globals from 'globals';
 import { globalIgnores, defineConfig } from 'eslint/config';
