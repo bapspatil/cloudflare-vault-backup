@@ -37,7 +37,7 @@ bun run build
 
 - ESLint is preconfigured with `eslint-plugin-obsidianmd` for Obsidian-specific rules.
 - Run `bun run lint` to lint the project. Run `bun run test` for unit tests.
-- A GitHub Action automatically lints every commit on all branches.
+- CI runs the build, lint and unit tests only on pushes to main.
 
 ## File & folder conventions
 
