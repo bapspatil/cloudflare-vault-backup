@@ -166,6 +166,7 @@ describe('standalone offline restore', () => {
 	it.each([
 		'../escaped.md', '/absolute.md', 'notes/../../escaped.md', 'C:/escaped.md', 'notes\\escaped.md',
 		'.git/config', 'HIDDEN~1/file.md', 'notes/file:stream', 'notes/NUL.txt', '.obsidian/plugins/cloudflare-vault-backup/data.json',
+		'.obsidian/plugins/cloudflare-vault-backup/backup-health.json',
 	])('refuses unsafe manifest path %s before creating output', async (path) => {
 		const h = await setup();
 		const entry = Object.values(h.manifest.files)[0];
