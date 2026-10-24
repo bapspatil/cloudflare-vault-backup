@@ -120,10 +120,12 @@ You can start a backup in three ways:
 
 Scheduled backups run every hour by default. **Backup interval** offers off, 15 minutes, 30 minutes, and 1, 3, 6, 12, or 24 hours. A scheduled backup waits until you have stopped editing for the quiet period, which is 90 seconds by default. Turn on **Back up on startup** to run a backup 30 seconds after the workspace loads.
 
+**Warn when the last successful backup is older than (hours)** defaults to 24; set it to 0 to turn warnings off. While scheduled backups are enabled and an account ID and bucket are set, an overdue backup shows a persistent notice and a desktop status bar warning. If this device has no recorded success, the warning starts only after the threshold has elapsed since backup health tracking began. Warnings are checked on startup, on scheduler ticks, and after failures, with at most one notice per warning interval. The next successful backup clears the warning.
+
 By default a backup includes every note and attachment in the vault and the configuration folder (`.obsidian` unless you changed it). The configuration folder holds your plugins, themes, and snippets. These files are always skipped:
 
 - `workspace.json` and `workspace-mobile.json` in the configuration folder.
-- This plugin's own `data.json`, `index.json`, `log.json`, and `counters.json`.
+- This plugin's own `data.json`, `index.json`, `log.json`, `counters.json`, and `backup-health.json`.
 
 Folders that start with a dot, such as `.trash` and `.git`, are not scanned. Turn off **Include configuration folder** to skip the configuration folder entirely.
 
@@ -150,7 +152,11 @@ For a single file you can:
 
 A restore skips any file whose current contents already match the snapshot. Every download is checked against its hash before the plugin writes it. A restore never deletes files.
 
-Restoring into the configuration folder needs an extra confirmation, because that folder can contain plugin code that Obsidian runs the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore the plugin reminds you to reload Obsidian. Workspace files and the plugin's own `data.json`, `index.json`, `log.json`, and `counters.json` are never restored. Paths outside this device's configuration folder that contain a name starting with a dot, such as `.git/hooks/pre-commit` or the configuration folder of a device that uses a different one, are never restored either. Neither is any path with a `~` followed by a digit in a file or folder name, such as `GIT~1/hooks/pre-commit`, because Windows can resolve such a name to a hidden folder. Rename those files before you back them up if you may need to restore them.
+Restoring into the configuration folder needs an extra confirmation, because that folder can contain plugin code that Obsidian runs the next time it starts. Restore configuration files only from a snapshot you trust. After a configuration restore the plugin reminds you to reload Obsidian. Workspace files and the plugin's own `data.json`, `index.json`, `log.json`, `counters.json`, and `backup-health.json` are never restored. Paths outside this device's configuration folder that contain a name starting with a dot, such as `.git/hooks/pre-commit` or the configuration folder of a device that uses a different one, are never restored either. Neither is any path with a `~` followed by a digit in a file or folder name, such as `GIT~1/hooks/pre-commit`, because Windows can resolve such a name to a hidden folder. Rename those files before you back them up if you may need to restore them.
+
+### Verifying backups
+
+Run **Verify latest backup**, or select the button beside **Back up now** in settings. It checks that every unique blob referenced by the latest snapshot exists, then downloads a random sample of up to 20 blobs and verifies their hashes (after decryption for encrypted backups). The result notice reports counts and missing or corrupt blob IDs, with long lists truncated. Verification reads only: it changes neither the bucket nor the vault, and cannot run alongside a backup. A successful sample check does not guarantee that unsampled blobs are intact.
 
 ## Encryption
 

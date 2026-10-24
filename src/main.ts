@@ -1,14 +1,17 @@
 import { Notice, Platform, Plugin, normalizePath, type WorkspaceLeaf } from 'obsidian';
 import { runBackup } from './backup/backup-runner';
 import { runLockedPrune } from './backup/prune-runner';
+import { runVerify } from './backup/verify-runner';
 import { createScheduler, type Scheduler } from './backup/scheduler';
 import { ERRORS, LABEL } from './core/run-machine';
 import type { RunLogEntry, RunState } from './core/types';
 import { LEGACY_PLUGIN_ID, loadSettings, type Settings } from './settings';
 import { probeConnection, ServiceFactory, SetupError } from './services';
+import { createRemoteStore } from './io/remote-store';
 import { RestoreView, RESTORE_VIEW_TYPE } from './ui/restore-view';
 import { SettingsTab } from './ui/settings-tab';
 import { StatusBar } from './ui/status-bar';
+import { StaleBackupWarning } from './ui/stale-backup-warning';
 
 export default class R2VaultSyncPlugin extends Plugin {
 	settings!: Settings;
@@ -16,6 +19,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 	state: RunState = { kind: 'idle' };
 	private scheduler!: Scheduler;
 	private statusBar: StatusBar | null = null;
+	private staleWarning: StaleBackupWarning | null = null;
 	private lastRunEndedAt: number | null = null;
 	private exclusiveTasks = 0;
 	private readonly stateListeners = new Set<(s: RunState) => void>();
@@ -26,6 +30,11 @@ export default class R2VaultSyncPlugin extends Plugin {
 		this.services = new ServiceFactory(this.app, () => this.settings);
 
 		if (!Platform.isMobile) this.statusBar = new StatusBar(this.addStatusBarItem(), () => this.backupNow('manual'));
+		const health = await this.services.local.loadBackupHealth().catch(() => ({ trackedSince: Date.now(), lastSuccessAt: null, lastWarningAt: null }));
+		await this.services.local.saveBackupHealth(health).catch(() => undefined);
+		this.staleWarning = new StaleBackupWarning(health, this.services.local, (stale) => this.statusBar?.render(this.state, stale));
+		await this.staleWarning.check(this.settings);
+		this.register(() => this.staleWarning?.hide());
 		this.addSettingTab(new SettingsTab(this.app, this));
 		this.registerView(RESTORE_VIEW_TYPE, (leaf: WorkspaceLeaf) => new RestoreView(leaf, this));
 		this.addRibbonIcon('cloud-upload', 'Back up vault to R2', () => void this.backupNow('manual'));
@@ -34,6 +43,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 		this.addCommand({ id: 'open-restore-view', name: 'Open restore browser', callback: () => void this.openRestoreView() });
 		this.addCommand({ id: 'test-connection', name: 'Test R2 connection', callback: () => void this.testConnection() });
 		this.addCommand({ id: 'prune-now', name: 'Prune old snapshots now', callback: () => void this.pruneNow() });
+		this.addCommand({ id: 'verify-latest-backup', name: 'Verify latest backup', callback: () => void this.verifyLatestBackup() });
 
 		this.scheduler = createScheduler({
 			now: Date.now,
@@ -43,6 +53,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 			isRunning: () => this.isRunning(),
 			lastRunEndedAt: () => this.lastRunEndedAt,
 			run: () => this.backupNow('scheduled'),
+			onTick: () => void this.staleWarning?.check(this.settings),
 		});
 		this.register(() => this.scheduler.stop());
 
@@ -84,6 +95,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+		await this.staleWarning?.check(this.settings);
 	}
 
 	isRunning(): boolean {
@@ -106,7 +118,7 @@ export default class R2VaultSyncPlugin extends Plugin {
 
 	private setState(state: RunState) {
 		this.state = state;
-		this.statusBar?.render(state);
+		this.statusBar?.render(state, this.staleWarning?.stale);
 		for (const l of this.stateListeners) l(state);
 	}
 
@@ -115,25 +127,53 @@ export default class R2VaultSyncPlugin extends Plugin {
 			if (trigger === 'manual') new Notice('A backup is already running.');
 			return this.state;
 		}
-		try {
-			const ctx = await this.services.context((s) => this.setState(s), this.manifest.version);
-			const result = await runBackup(ctx, trigger);
-			await this.services.local.saveCounters(ctx.client.counters());
-			this.lastRunEndedAt = Date.now();
-			if (result.kind === 'failed') {
-				new Notice(`Backup failed: ${ERRORS[result.error.code].message}`, 8000);
-			} else if (trigger === 'manual') {
-				new Notice(LABEL.done(result));
+		return this.runExclusive(async () => {
+			try {
+				const ctx = await this.services.context((s) => this.setState(s), this.manifest.version);
+				const result = await runBackup(ctx, trigger);
+				if (result.kind === 'done') await this.staleWarning?.succeeded();
+				else await this.staleWarning?.check(this.settings);
+				await this.services.local.saveCounters(ctx.client.counters());
+				this.lastRunEndedAt = Date.now();
+				if (result.kind === 'failed') {
+					new Notice(`Backup failed: ${ERRORS[result.error.code].message}`, 8000);
+				} else if (trigger === 'manual') {
+					new Notice(LABEL.done(result));
+				}
+				return result;
+			} catch (e) {
+				this.lastRunEndedAt = Date.now();
+				const detail = e instanceof Error ? e.message : String(e);
+				const failed: RunState = { kind: 'failed', phase: 'idle', error: { code: e instanceof SetupError ? 'auth' : 'io', detail } };
+				this.setState(failed);
+				new Notice(detail, 8000);
+				await this.staleWarning?.check(this.settings);
+				return failed;
 			}
-			return result;
-		} catch (e) {
-			this.lastRunEndedAt = Date.now();
-			const detail = e instanceof Error ? e.message : String(e);
-			const failed: RunState = { kind: 'failed', phase: 'idle', error: { code: e instanceof SetupError ? 'auth' : 'io', detail } };
-			this.setState(failed);
-			new Notice(detail, 8000);
-			return failed;
+		});
+	}
+
+	async verifyLatestBackup(): Promise<void> {
+		if (this.isRunning()) {
+			new Notice('A backup or maintenance task is already running.');
+			return;
 		}
+		await this.runExclusive(async () => {
+			try {
+				const { client, root, sealer } = await this.services.services(true);
+				const result = await runVerify({ store: createRemoteStore(client, root, sealer), random: Math.random });
+				const counts = `${result.blobs} blobs checked for existence, ${result.verified}/${result.sampled} sampled blobs verified`;
+				const issues = [
+					...result.missing.map((hash) => `Missing: ${hash}`),
+					...result.corrupt.map((hash) => `Corrupt: ${hash}`),
+				];
+				new Notice(issues.length === 0
+					? `Backup verification OK: ${counts}.`
+					: `Backup verification: ${counts}; ${result.missing.length} missing, ${result.corrupt.length} corrupt.\n${issues.slice(0, 5).join('\n')}${issues.length > 5 ? '\n…' : ''}`, 15_000);
+			} catch (e) {
+				new Notice(`Backup verification failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+			}
+		});
 	}
 
 	async testConnection(): Promise<string> {
@@ -155,20 +195,22 @@ export default class R2VaultSyncPlugin extends Plugin {
 			new Notice('A backup is already running.');
 			return;
 		}
-		try {
-			const ctx = await this.services.context((s) => this.setState(s), this.manifest.version);
-			this.setState({ kind: 'pruning', deleted: 0 });
-			const result = await runLockedPrune(ctx, (deleted) => this.setState({ kind: 'pruning', deleted }));
-			this.setState({ kind: 'idle' });
-			new Notice(
-				result.kind === 'locked'
-					? 'Another device is backing up. Try pruning again later.'
-					: `Pruned ${result.manifestsDeleted} snapshots and ${result.blobsDeleted} blobs.`,
-			);
-		} catch (e) {
-			this.setState({ kind: 'idle' });
-			new Notice(`Prune failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
-		}
+		await this.runExclusive(async () => {
+			try {
+				const ctx = await this.services.context((s) => this.setState(s), this.manifest.version);
+				this.setState({ kind: 'pruning', deleted: 0 });
+				const result = await runLockedPrune(ctx, (deleted) => this.setState({ kind: 'pruning', deleted }));
+				this.setState({ kind: 'idle' });
+				new Notice(
+					result.kind === 'locked'
+						? 'Another device is backing up. Try pruning again later.'
+						: `Pruned ${result.manifestsDeleted} snapshots and ${result.blobsDeleted} blobs.`,
+				);
+			} catch (e) {
+				this.setState({ kind: 'idle' });
+				new Notice(`Prune failed: ${e instanceof Error ? e.message : String(e)}`, 8000);
+			}
+		});
 	}
 
 	async openRestoreView(): Promise<void> {

@@ -46,6 +46,7 @@ export interface Settings {
 	schedule: ScheduleSettings;
 	retention: RetentionSettings;
 	concurrency: number;
+	staleBackupWarningHours: number;
 }
 
 export const DEFAULT_SETTINGS: Omit<Settings, 'vaultId'> = {
@@ -81,6 +82,7 @@ export const DEFAULT_SETTINGS: Omit<Settings, 'vaultId'> = {
 		gcIntervalHours: 24,
 	},
 	concurrency: 4,
+	staleBackupWarningHours: 24,
 };
 
 export function newVaultId(): string {
@@ -100,6 +102,8 @@ export function loadSettings(raw: unknown): Settings {
 		scope: { ...DEFAULT_SETTINGS.scope, ...stored.scope },
 		schedule: { ...DEFAULT_SETTINGS.schedule, ...stored.schedule },
 		retention: { ...DEFAULT_SETTINGS.retention, ...stored.retention },
+		staleBackupWarningHours: typeof stored.staleBackupWarningHours === 'number' && Number.isFinite(stored.staleBackupWarningHours) && stored.staleBackupWarningHours >= 0
+			? stored.staleBackupWarningHours : DEFAULT_SETTINGS.staleBackupWarningHours,
 		version: SETTINGS_VERSION,
 	};
 }

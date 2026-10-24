@@ -18,11 +18,11 @@ export class StatusBar {
 		this.render({ kind: 'idle' });
 	}
 
-	render(state: RunState): void {
+	render(state: RunState, stale = false): void {
 		const busy = !['idle', 'done', 'failed'].includes(state.kind);
-		setIcon(this.iconEl, state.kind === 'failed' ? 'cloud-off' : busy ? 'refresh-cw' : 'cloud-upload');
-		this.textEl.setText(LABEL[state.kind](state));
+		setIcon(this.iconEl, stale ? 'alert-triangle' : state.kind === 'failed' ? 'cloud-off' : busy ? 'refresh-cw' : 'cloud-upload');
+		this.textEl.setText(stale ? `Backup overdue · ${LABEL[state.kind](state)}` : LABEL[state.kind](state));
 		this.el.toggleClass('r2-vault-sync-status-busy', busy);
-		this.el.toggleClass('r2-vault-sync-status-failed', state.kind === 'failed');
+		this.el.toggleClass('r2-vault-sync-status-failed', stale || state.kind === 'failed');
 	}
 }
