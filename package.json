@@ -1,6 +1,6 @@
 {
 	"name": "cloudflare-vault-backup",
-	"version": "1.3.0",
+	"version": "1.4.0",
 	"description": "Obsidian plugin that backs up a vault to your own Cloudflare R2 bucket with versioned snapshots, per-note restore and optional encryption",
 	"author": {
 		"name": "Bapusaheb Patil",
