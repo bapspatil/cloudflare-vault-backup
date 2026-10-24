@@ -1,5 +1,6 @@
 import { Notice, PluginSettingTab, Setting, type App } from 'obsidian';
 import type R2VaultSyncPlugin from '../main';
+import { DEFAULT_SETTINGS } from '../settings';
 import { LABEL } from '../core/run-machine';
 import type { RunState } from '../core/types';
 import { LogModal } from './log-modal';
@@ -131,11 +132,11 @@ export class SettingsTab extends PluginSettingTab {
 				}),
 			);
 		const keyDesc = "Keys are stored in Obsidian's secret storage, not in the plugin data file.";
-		addSecretSetting(this.app, new Setting(el).setName('Access key ID').setDesc(keyDesc), c.accessKeyIdSecretId, 'r2-vault-sync-access-key-id', async (id) => {
+		addSecretSetting(this.app, new Setting(el).setName('Access key ID').setDesc(keyDesc), c.accessKeyIdSecretId, DEFAULT_SETTINGS.connection.accessKeyIdSecretId, async (id) => {
 			c.accessKeyIdSecretId = id;
 			await this.save();
 		});
-		addSecretSetting(this.app, new Setting(el).setName('Secret access key').setDesc(keyDesc), c.secretKeySecretId, 'r2-vault-sync-secret-access-key', async (id) => {
+		addSecretSetting(this.app, new Setting(el).setName('Secret access key').setDesc(keyDesc), c.secretKeySecretId, DEFAULT_SETTINGS.connection.secretKeySecretId, async (id) => {
 			c.secretKeySecretId = id;
 			await this.save();
 		});
@@ -165,7 +166,7 @@ export class SettingsTab extends PluginSettingTab {
 					await this.save();
 				}),
 			);
-		addSecretSetting(this.app, new Setting(el).setName('Passphrase').setDesc("Stored in Obsidian's secret storage."), e.passphraseSecretId, 'r2-vault-sync-passphrase', async (id) => {
+		addSecretSetting(this.app, new Setting(el).setName('Passphrase').setDesc("Stored in Obsidian's secret storage."), e.passphraseSecretId, DEFAULT_SETTINGS.encryption.passphraseSecretId, async (id) => {
 			e.passphraseSecretId = id;
 			this.plugin.services.forgetKeys();
 			await this.save();
